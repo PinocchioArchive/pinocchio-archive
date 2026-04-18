@@ -15,8 +15,17 @@
       "image_file": "images/M217-A.jpg",
       "image_sources": [
         {
-          "url": "https://vegalleries.com/art/walt-disney/134/pinocchio-1940/pinocchio-photostat-model-sheet-id-janmodel20236",
           "source_type": "auction_listing",
+          "source_name": "Van Eaton Galleries",
+          "url": "https://vegalleries.com/art/walt-disney/134/pinocchio-1940/pinocchio-photostat-model-sheet-id-janmodel20236",
+          "retrieved": "2026-04-18",
+          "notes": "",
+          "archive_status": "failed",
+          "archive_captured_at": "2026-04-18T09:00:55.929Z"
+        },
+        {
+          "url": "https://vegalleries.com/art/walt-disney/134/pinocchio-1940/pinocchio-photostat-model-sheet-id-janmodel20236",
+          "source_type": "other",
           "source_name": "vegalleries.com",
           "retrieved": "2026-04-18",
           "notes": "",
@@ -44,7 +53,7 @@
       ],
       "notes": "",
       "created_at": "2026-04-18T05:17:44.459Z",
-      "updated_at": "2026-04-18T23:21:40.202Z",
+      "updated_at": "2026-04-18T21:41:18.400Z",
       "image_width": 900,
       "image_height": 706,
       "sequence_association": "9-1",
