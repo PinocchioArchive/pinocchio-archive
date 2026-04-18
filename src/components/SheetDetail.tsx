@@ -6,6 +6,7 @@ import {
   tineyeUrl,
 } from '../lib/image';
 import { computeResearchStatus, type SeriesSlot } from '../lib/sheets';
+import { NoImagePlaceholder } from './NoImagePlaceholder';
 import {
   toggleSheetInList,
   createList,
@@ -129,14 +130,7 @@ export function SheetDetail({
               {imageSrc ? (
                 <img src={imageSrc} alt={sheet.title || sheet.id} />
               ) : (
-                <div
-                  style={{
-                    color: 'var(--ink-faded)',
-                    fontFamily: 'var(--mono)',
-                  }}
-                >
-                  No image attached
-                </div>
+                <NoImagePlaceholder sheetId={sheet.id} />
               )}
               {sheet.image_width && sheet.image_height && (
                 <div

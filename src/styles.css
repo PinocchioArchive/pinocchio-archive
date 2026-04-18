@@ -2254,3 +2254,129 @@ button.btn-small,
   font-style: italic;
   opacity: 0.75;
 }
+
+/* ---------- No-image placeholder ---------- */
+/*
+ * Aesthetic placeholder shown in place of a missing image, both in
+ * card context (compact variant) and detail context (full variant).
+ * Rendered as inline SVG so it themes with CSS variables. The design
+ * evokes an archival filing slip waiting for its photograph — nested
+ * paper rectangles, a caption slip, and a minimal aperture glyph.
+ */
+.no-image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+}
+
+.no-image-placeholder svg {
+  width: 100%;
+  height: 100%;
+  max-width: 260px;
+  max-height: 340px;
+}
+
+.no-image-placeholder-compact svg {
+  /* Tighter aspect for card thumbnails — drop the tall caption space. */
+  max-height: 100%;
+}
+
+/* Small corner badge on cards that lack an image. Sits over the
+   placeholder's upper-right, echoes the low-res badge pattern. */
+.card-no-image-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(30, 42, 68, 0.85);
+  color: var(--cream);
+  padding: 1px 6px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- Gap card (grid) ---------- */
+/*
+ * Ghost card for a missing numeric range in the grid. Non-interactive,
+ * muted, present to surface scholarly gaps without feeling like an
+ * error state. Sits in the grid flow via .card so it occupies a
+ * grid cell of the same size as real cards.
+ */
+.card-gap {
+  background: transparent;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius-sm);
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  padding: 20px;
+  /* Deliberately no hover lift — these aren't clickable. */
+  transition: none;
+  box-shadow: none;
+}
+
+.card-gap:hover {
+  /* Same subtle state as resting — nothing to do. */
+  border-color: var(--rule);
+  transform: none;
+  box-shadow: none;
+}
+
+.card-gap-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-faded);
+  text-align: center;
+}
+
+.card-gap-id {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.card-gap-meta {
+  font-family: var(--serif);
+  font-size: 11px;
+  font-style: italic;
+  color: var(--ink-faded);
+  opacity: 0.8;
+}
+
+.card-gap-glyph {
+  width: 60px;
+  height: 40px;
+  color: var(--ink-faded);
+  opacity: 0.5;
+  margin-top: 4px;
+}
+
+/* ---------- Gap row (list view) ---------- */
+.list-row-gap {
+  background: transparent;
+  border-left: 2px dashed var(--rule);
+  cursor: default;
+  opacity: 0.75;
+}
+
+.list-row-gap:hover {
+  background: transparent;
+}
+
+.list-row-id-gap {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-faded);
+  font-style: italic;
+}

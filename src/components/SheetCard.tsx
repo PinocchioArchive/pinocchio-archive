@@ -4,6 +4,7 @@ import { resolutionTier } from '../lib/image';
 import { computeResearchStatus } from '../lib/sheets';
 import { toggleSheetInList, createList, type UserList } from '../lib/lists';
 import { useDialog } from './Dialog';
+import { NoImagePlaceholder } from './NoImagePlaceholder';
 
 interface Props {
   sheet: ModelSheet;
@@ -300,7 +301,15 @@ export function SheetCard({
         {imageSrc ? (
           <img src={imageSrc} alt={sheet.title || sheet.id} loading="lazy" />
         ) : (
-          <span className="card-image-placeholder">No Image</span>
+          <>
+            <NoImagePlaceholder sheetId={sheet.id} compact />
+            <span
+              className="card-no-image-badge"
+              title="This record has no image attached yet"
+            >
+              No image
+            </span>
+          </>
         )}
         {tier === 'thumbnail' && imageSrc && (
           <span

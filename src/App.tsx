@@ -7,11 +7,13 @@ import {
   compareSheetsBySheetMark,
   extractVocabulary,
   extractSourceVocabulary,
+  findNumericGaps,
   findSeriesWithGaps,
   getRecentDefaults,
   makeEmptySheet,
   migrateArchive,
   parseSequenceNumber,
+  type NumericRangeGap,
 } from './lib/sheets';
 import {
   commitBinaryFile,
@@ -25,6 +27,7 @@ import { useKeyboardShortcuts } from './lib/useKeyboardShortcuts';
 import { loadLists, addSheetsToList, createList } from './lib/lists';
 import { reverifyPendingSource } from './lib/archive';
 import { SheetCard } from './components/SheetCard';
+import { GapCard } from './components/GapCard';
 import { SheetListRow } from './components/SheetListRow';
 import { SheetDetail } from './components/SheetDetail';
 import { SheetEdit } from './components/SheetEdit';
@@ -103,6 +106,17 @@ export default function App() {
   const [showBulk, setShowBulk] = useState(false);
   const [showManageLists, setShowManageLists] = useState(false);
   const [showVocabularyHealth, setShowVocabularyHealth] = useState(false);
+  // Whether to show numeric-range gap cards in the grid (between
+  // existing sheets sorted by number). Default ON — the user's stated
+  // scholarly premise is that the M-numbered sequence is continuous,
+  // so gaps represent real missing artifacts. Persisted to localStorage
+  // so the preference survives reloads.
+  const [showGaps, setShowGaps] = useState(() => {
+    return localStorage.getItem('pma_show_gaps') !== '0';
+  });
+  useEffect(() => {
+    localStorage.setItem('pma_show_gaps', showGaps ? '1' : '0');
+  }, [showGaps]);
   const { promptDialog, confirmDialog } = useDialog();
   const vocabulary = useVocabulary();
   // Select mode toggles checkboxes on cards; in this mode clicking a card
@@ -418,6 +432,71 @@ export default function App() {
     return list;
   }, [data, filters, listsTick]);
 
+  // Interleaved list for grid/list rendering: sheets plus gap cards for
+  // missing numeric bases. Gaps only appear when:
+  //   - the user has the "show gaps" preference on (default)
+  //   - sort is by number (otherwise there's no natural slot for a gap)
+  //   - no filters are active (a filtered view can't meaningfully
+  //     claim "this number is missing" — the gap might just be
+  //     filtered out)
+  //
+  // Each grid item is tagged with a kind so the renderer can branch.
+  type GridItem =
+    | { kind: 'sheet'; sheet: ModelSheet; key: string }
+    | { kind: 'gap'; gap: NumericRangeGap; key: string };
+
+  const gridItems: GridItem[] = useMemo(() => {
+    const asSheets: GridItem[] = filtered.map((s) => ({
+      kind: 'sheet' as const,
+      sheet: s,
+      key: s.id,
+    }));
+    if (
+      !showGaps ||
+      filters.sort !== 'number' ||
+      filters.search ||
+      filters.sequence_association ||
+      filters.character ||
+      filters.tag ||
+      filters.sheetMark ||
+      filters.needsResearch ||
+      filters.listId ||
+      !data
+    ) {
+      return asSheets;
+    }
+    // Compute archive-wide numeric gaps (single prefix "M" for now —
+    // if the collection ever mixes prefixes this is the place to fan
+    // out across each prefix's present range).
+    const gaps = findNumericGaps(data.sheets, 'M');
+    if (gaps.length === 0) return asSheets;
+    // Merge: walk sheets and gaps together, emitting whichever has
+    // the lower numeric base next. Both are pre-sorted ascending by
+    // number, so a simple two-pointer merge is enough.
+    const merged: GridItem[] = [];
+    let si = 0;
+    let gi = 0;
+    while (si < asSheets.length || gi < gaps.length) {
+      const sheetItem = asSheets[si];
+      const gap = gaps[gi];
+      const sheetNum =
+        sheetItem?.kind === 'sheet' ? sheetItem.sheet.sheet_number_numeric : Infinity;
+      const gapNum = gap?.from ?? Infinity;
+      if (sheetNum <= gapNum) {
+        if (sheetItem) merged.push(sheetItem);
+        si++;
+      } else {
+        merged.push({
+          kind: 'gap',
+          gap,
+          key: `gap-${gap.prefix}${gap.from}-${gap.to}`,
+        });
+        gi++;
+      }
+    }
+    return merged;
+  }, [filtered, showGaps, filters, data]);
+
   // For the "Group by character" view: each character gets a group, and
   // each sheet that lists that character appears in that group. A sheet with
   // multiple characters appears in multiple groups.
@@ -501,6 +580,16 @@ export default function App() {
     return data.sheets
       .filter((s) => s.needs_research)
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }, [data]);
+
+  // Total count of missing numbers in the archive-wide numeric sequence
+  // (e.g., if the collection spans M14–M389, how many integers in that
+  // range are missing). Shown on the "Show gaps" toggle chip so the
+  // user can see at a glance how gap-filled the collection is.
+  const numericGapCount = useMemo(() => {
+    if (!data) return 0;
+    const gaps = findNumericGaps(data.sheets, 'M');
+    return gaps.reduce((n, g) => n + (g.to - g.from + 1), 0);
   }, [data]);
 
   const selected = selectedId
@@ -1100,6 +1189,28 @@ export default function App() {
           </>
         )}
 
+        {numericGapCount > 0 && (
+          <>
+            <span
+              className="facet-label"
+              style={{ marginLeft: isAuthenticated ? 12 : 0 }}
+            >
+              Gaps
+            </span>
+            <button
+              className={`chip ${showGaps ? 'active' : ''}`}
+              onClick={() => setShowGaps((v) => !v)}
+              title={
+                showGaps
+                  ? 'Hide gap placeholders in the grid'
+                  : 'Show gap placeholders for missing numeric bases'
+              }
+            >
+              {showGaps ? 'Showing' : 'Hidden'} ({numericGapCount})
+            </button>
+          </>
+        )}
+
         <span
           className="facet-label"
           style={{ marginLeft: isAuthenticated ? 12 : 0 }}
@@ -1390,20 +1501,27 @@ export default function App() {
         </div>
       ) : filters.view === 'grid' ? (
         <div className="grid">
-          {filtered.map((s, i) => (
-            <SheetCard
-              key={s.id}
-              sheet={s}
-              imageBase={BASE}
-              onClick={() => setSelectedId(s.id)}
-              focused={i === focusedIdx}
-              userLists={userLists}
-              onListsChanged={bumpLists}
-              selectMode={selectMode}
-              selected={selectedIds.has(s.id)}
-              onSelectToggle={() => toggleSelect(s.id)}
-            />
-          ))}
+          {gridItems.map((item) => {
+            if (item.kind === 'gap') {
+              return <GapCard key={item.key} gap={item.gap} />;
+            }
+            const s = item.sheet;
+            const focusedSheetIdx = filtered.indexOf(s);
+            return (
+              <SheetCard
+                key={s.id}
+                sheet={s}
+                imageBase={BASE}
+                onClick={() => setSelectedId(s.id)}
+                focused={focusedSheetIdx === focusedIdx}
+                userLists={userLists}
+                onListsChanged={bumpLists}
+                selectMode={selectMode}
+                selected={selectedIds.has(s.id)}
+                onSelectToggle={() => toggleSelect(s.id)}
+              />
+            );
+          })}
         </div>
       ) : (
         <div className="list">
@@ -1416,15 +1534,51 @@ export default function App() {
             <div className="list-row-webocc">Hits</div>
             <div className="list-row-flags">Flags</div>
           </div>
-          {filtered.map((s, i) => (
-            <SheetListRow
-              key={s.id}
-              sheet={s}
-              imageBase={BASE}
-              onClick={() => setSelectedId(s.id)}
-              focused={i === focusedIdx}
-            />
-          ))}
+          {gridItems.map((item) => {
+            if (item.kind === 'gap') {
+              // Compact list-row variant of the gap. Reuses card-gap
+              // styling but in a row layout so it sits properly in the
+              // list view's table grid.
+              const { prefix, from, to } = item.gap;
+              const idLabel =
+                from === to
+                  ? `${prefix}${from}`
+                  : `${prefix}${from}–${prefix}${to}`;
+              const count = to - from + 1;
+              return (
+                <div
+                  key={item.key}
+                  className="list-row list-row-gap"
+                  title={`${count} missing from numeric sequence`}
+                >
+                  <div style={{ width: 60 }}></div>
+                  <div className="list-row-id">
+                    <span className="list-row-id-gap">{idLabel}</span>
+                  </div>
+                  <div className="list-row-title">
+                    <em style={{ color: 'var(--ink-faded)' }}>
+                      {count === 1 ? 'missing' : `${count} missing`}
+                    </em>
+                  </div>
+                  <div className="list-row-chars"></div>
+                  <div className="list-row-date"></div>
+                  <div className="list-row-webocc"></div>
+                  <div className="list-row-flags"></div>
+                </div>
+              );
+            }
+            const s = item.sheet;
+            const focusedSheetIdx = filtered.indexOf(s);
+            return (
+              <SheetListRow
+                key={s.id}
+                sheet={s}
+                imageBase={BASE}
+                onClick={() => setSelectedId(s.id)}
+                focused={focusedSheetIdx === focusedIdx}
+              />
+            );
+          })}
         </div>
       )}
 
