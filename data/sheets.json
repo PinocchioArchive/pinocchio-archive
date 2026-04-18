@@ -1,0 +1,35 @@
+{
+  "schema_version": 3,
+  "sheets": [
+    {
+      "id": "M217-A",
+      "sheet_number_prefix": "M",
+      "sheet_number_numeric": 217,
+      "sheet_number_suffix": "A",
+      "title": "",
+      "characters": [],
+      "production_stamps": [],
+      "department": "Character Model Department",
+      "date_precision": "unknown",
+      "approvals": [],
+      "image_file": "images/M217-A.jpg",
+      "image_sources": [],
+      "in_my_physical_collection": false,
+      "published_references": [],
+      "web_occurrences": [],
+      "rarity": {
+        "market": "unknown",
+        "institutional": "unknown",
+        "iconographic": "unknown"
+      },
+      "confidence": "unverified",
+      "needs_research": true,
+      "tags": [],
+      "notes": "",
+      "created_at": "2026-04-18T05:17:44.459Z",
+      "updated_at": "2026-04-18T05:17:59.815Z",
+      "image_width": 900,
+      "image_height": 706
+    }
+  ]
+}
