@@ -1283,7 +1283,7 @@ button.btn-small,
 .card-tagpile {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 6px;
+  gap: 5px 5px;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px dashed rgba(201, 190, 166, 0.6);
@@ -1291,44 +1291,71 @@ button.btn-small,
 }
 
 .tagchip {
-  background: transparent;
-  border: none;
-  padding: 2px 8px;
-  font-family: var(--serif);
-  font-size: 12px;
+  background: var(--paper-deep);
+  border: 1px solid transparent;
+  padding: 3px 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.12s ease;
-  line-height: 1.5;
+  transition: border-color 0.12s ease;
+  line-height: 1.4;
+  color: var(--ink-soft);
 }
 
 .tagchip:hover {
-  filter: brightness(0.92);
+  border-color: var(--ink);
 }
 
+.tagchip-icon {
+  opacity: 0.5;
+  margin-right: 3px;
+}
+
+.tagchip-hint {
+  font-style: italic;
+  opacity: 0.6;
+  margin-left: 2px;
+  font-family: var(--serif);
+}
+
+/* Character — warm brown on faded cream */
 .tagchip-char {
-  background: rgba(139, 46, 31, 0.08);
+  background: #eadccf;
+  color: #6b3d1f;
+}
+
+/* Sequence — navy on muted blue-gray, tying to the masthead */
+.tagchip-seq {
+  background: #d8dbe2;
+  color: var(--navy);
+}
+
+/* Date — deep red on faded terra cotta, tying to the --accent */
+.tagchip-date {
+  background: #ead7d1;
   color: var(--accent);
 }
 
-.tagchip-seq {
-  background: rgba(212, 168, 75, 0.14);
-  color: #8b6a1a;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.03em;
-}
-
-.tagchip-date {
-  background: rgba(74, 107, 58, 0.12);
-  color: #3b5a26;
-  font-family: var(--mono);
-  font-size: 11px;
-}
-
+/* Tag — olive on faded green, tying to --success */
 .tagchip-tag {
-  background: rgba(107, 93, 79, 0.1);
-  color: var(--ink-soft);
+  background: #dce4d0;
+  color: var(--success);
+}
+
+/* Needs research — amber on pale amber, bolder weight for status emphasis */
+.tagchip-needs {
+  background: #f0e3c5;
+  color: var(--warn);
+  font-weight: 600;
+  padding: 3px 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  border-radius: 999px;
+  line-height: 1.4;
+  cursor: default;
 }
 
 /* ---------- Card body: ID + badges inline row ---------- */
