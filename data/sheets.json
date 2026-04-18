@@ -31,9 +31,9 @@
       "published_references": [],
       "web_occurrences": [],
       "rarity": {
-        "market": "rare",
+        "market": "unknown",
         "institutional": "unknown",
-        "iconographic": "rare"
+        "iconographic": "unknown"
       },
       "confidence": "unverified",
       "needs_research": true,
@@ -42,10 +42,11 @@
       ],
       "notes": "",
       "created_at": "2026-04-18T05:17:44.459Z",
-      "updated_at": "2026-04-18T10:31:30.041Z",
+      "updated_at": "2026-04-18T10:34:19.237Z",
       "image_width": 900,
       "image_height": 706,
-      "sequence_association": "9-1"
+      "sequence_association": "9-1",
+      "date_on_sheet": "6/30/39"
     }
   ]
 }
