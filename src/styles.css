@@ -1290,6 +1290,15 @@ button.btn-small,
   line-height: 1.4;
 }
 
+/* Second row below card-tagpile — holds free-form #tag chips as their
+   own "topic zone" distinct from the identity chips above. Same visual
+   language but set apart by margin and a lighter separator. */
+.card-tagzone {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(201, 190, 166, 0.35);
+}
+
 .tagchip {
   background: var(--paper-deep);
   border: 1px solid transparent;
@@ -1311,6 +1320,17 @@ button.btn-small,
 .tagchip-icon {
   opacity: 0.5;
   margin-right: 3px;
+}
+
+.tagchip-icon-svg {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -1px;
+  margin-right: 4px;
+}
+
+.tagchip-icon-svg svg {
+  fill: currentColor;
 }
 
 .tagchip-hint {
