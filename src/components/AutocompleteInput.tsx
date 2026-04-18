@@ -95,14 +95,8 @@ export function AutocompleteInput({
         onEnter();
       }
     } else if (e.key === 'Escape') {
-      // If the dropdown was open, close it and swallow the Escape so the
-      // enclosing modal doesn't also close. If it was already closed,
-      // let Escape bubble up so the modal's Escape handler runs.
-      if (open) {
-        e.stopPropagation();
-        setOpen(false);
-        setActiveIdx(-1);
-      }
+      setOpen(false);
+      setActiveIdx(-1);
     }
   };
 

@@ -10,7 +10,6 @@ import {
   mergeLists,
   type UserList,
 } from '../lib/lists';
-import { useDialog } from './Dialog';
 
 interface Props {
   onClose: () => void;
@@ -31,7 +30,6 @@ export function ManageLists({ onClose, onChange }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [pending, setPending] = useState<PendingImport>({ phase: 'none' });
-  const { confirmDialog, alertDialog } = useDialog();
 
   const bump = () => {
     setTick(tick + 1);
@@ -59,20 +57,14 @@ export function ManageLists({ onClose, onChange }: Props) {
     setRenameValue('');
   };
 
-  const handleDelete = async (l: UserList) => {
-    const message =
+  const handleDelete = (l: UserList) => {
+    const msg =
       l.sheet_ids.length > 0
-        ? `"${l.name}" contains ${l.sheet_ids.length} sheet${
+        ? `Delete list "${l.name}" with ${l.sheet_ids.length} sheet${
             l.sheet_ids.length === 1 ? '' : 's'
-          }. This only affects your browser, not the archive itself.`
-        : undefined;
-    const ok = await confirmDialog({
-      title: `Delete list "${l.name}"?`,
-      message,
-      confirmLabel: 'Delete',
-      destructive: true,
-    });
-    if (!ok) return;
+          }? This only affects your browser, not the archive.`
+        : `Delete list "${l.name}"?`;
+    if (!confirm(msg)) return;
     deleteList(l.id);
     bump();
   };
@@ -109,35 +101,27 @@ export function ManageLists({ onClose, onChange }: Props) {
     reader.readAsText(file);
   };
 
-  const confirmReplace = async () => {
+  const confirmReplace = () => {
     if (pending.phase !== 'choose') return;
-    if (data.lists.length > 0) {
-      const ok = await confirmDialog({
-        title: 'Replace all existing lists?',
-        message: `This will REPLACE all ${data.lists.length} of your current lists with ${pending.imported.length} imported ones. Your current lists will be lost.`,
-        confirmLabel: 'Replace',
-        destructive: true,
-      });
-      if (!ok) return;
+    if (
+      data.lists.length > 0 &&
+      !confirm(
+        `This will REPLACE all ${data.lists.length} of your current lists with ${pending.imported.length} imported ones. Continue?`
+      )
+    ) {
+      return;
     }
     replaceListsWith(pending.imported);
     setPending({ phase: 'none' });
     bump();
   };
 
-  const confirmMerge = async () => {
+  const confirmMerge = () => {
     if (pending.phase !== 'choose') return;
     const summary = mergeLists(pending.imported);
-    await alertDialog({
-      title: 'Merge complete',
-      message: `${summary.added} new list${
-        summary.added === 1 ? '' : 's'
-      } added, ${summary.merged} existing list${
-        summary.merged === 1 ? '' : 's'
-      } updated, ${summary.sheetsAdded} new sheet reference${
-        summary.sheetsAdded === 1 ? '' : 's'
-      } added.`,
-    });
+    alert(
+      `Merged: ${summary.added} new lists added, ${summary.merged} existing lists updated, ${summary.sheetsAdded} new sheet references added.`
+    );
     setPending({ phase: 'none' });
     bump();
   };

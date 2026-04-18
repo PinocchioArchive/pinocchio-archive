@@ -19,7 +19,6 @@ export function SheetListRow({ sheet, imageBase, onClick, focused }: Props) {
   return (
     <button
       onClick={onClick}
-      data-sheet-id={sheet.id}
       className="list-row"
       aria-label={`View ${sheet.id}`}
       style={

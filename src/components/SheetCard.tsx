@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ModelSheet } from '../types/schema';
 import { resolutionTier } from '../lib/image';
-import { formatSequenceParts, computeResearchStatus } from '../lib/sheets';
+import { formatSequenceParts } from '../lib/sheets';
 import { toggleSheetInList, createList, type UserList } from '../lib/lists';
-import { useDialog } from './Dialog';
 
 interface Props {
   sheet: ModelSheet;
@@ -30,8 +29,6 @@ export function SheetCard({
 }: Props) {
   const imageSrc = sheet.image_file ? `${imageBase}${sheet.image_file}` : '';
   const tier = resolutionTier(sheet.image_width, sheet.image_height);
-  const researchStatus = computeResearchStatus(sheet);
-  const { promptDialog } = useDialog();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -64,12 +61,28 @@ export function SheetCard({
     else onClick();
   };
 
-  // Badges (list-membership bookmark + its menu) render inline next to the
-  // sheet ID at the top of the card body. Extracted as a fragment to keep
-  // the return JSX readable. (Needs-research now lives in the tag rail,
-  // not as a separate badge here.)
+  // Badges (research pill + bookmark/list button + its menu) render inline
+  // next to the sheet ID at the top of the card body. Extracted as a fragment
+  // to keep the return JSX readable.
   const badges = (
     <div className="card-badges-inline">
+      {sheet.needs_research && (
+        <span
+          style={{
+            background: 'var(--warn)',
+            color: 'var(--paper)',
+            padding: '2px 6px',
+            fontFamily: 'var(--mono)',
+            fontSize: 8,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            borderRadius: '999px',
+          }}
+          title="Flagged for more research"
+        >
+          Research
+        </span>
+      )}
       <div ref={menuRef} style={{ position: 'relative' }}>
         <button
           type="button"
@@ -80,7 +93,7 @@ export function SheetCard({
           title={
             memberCount > 0
               ? `In ${memberCount} list${memberCount === 1 ? '' : 's'}`
-              : 'View / add to lists'
+              : 'Add to a list'
           }
           style={{
             width: 22,
@@ -202,14 +215,10 @@ export function SheetCard({
             })}
             <button
               type="button"
-              onClick={async () => {
-                const name = await promptDialog({
-                  title: 'New list',
-                  message: 'Create a new list and add this sheet to it.',
-                  placeholder: 'List name',
-                });
-                if (!name) return;
-                const l = createList(name);
+              onClick={() => {
+                const name = prompt('Name for new list');
+                if (!name || !name.trim()) return;
+                const l = createList(name.trim());
                 toggleSheetInList(l.id, sheet.id);
                 onListsChanged();
                 setMenuOpen(false);
@@ -238,7 +247,6 @@ export function SheetCard({
   return (
     <div
       className="card"
-      data-sheet-id={sheet.id}
       role="button"
       tabIndex={0}
       onClick={handleActivation}
@@ -334,66 +342,17 @@ export function SheetCard({
         </h3>
         <TagPile sheet={sheet} />
       </div>
-      <span
-        className={`research-dot research-dot-${researchStatus}`}
-        title={
-          researchStatus === 'complete'
-            ? 'Record complete — key scholarly fields populated'
-            : researchStatus === 'some'
-            ? 'Research pending — flagged or partial info'
-            : 'Stub record — minimal info, needs significant research'
-        }
-        role="status"
-      />
     </div>
   );
 }
 
-// Format a date_on_sheet string based on its precision. Returns a
-// human-readable string suitable for display in the date chip, plus
-// an optional precision hint shown in italic.
-function formatDateChip(
-  dateOnSheet: string | undefined,
-  precision: string
-): { display: string; hint?: string } | null {
-  if (!dateOnSheet) return null;
-  const d = dateOnSheet;
-  // Year-only precision
-  if (precision === 'year' || d.length === 4) {
-    return { display: d.slice(0, 4), hint: '(year)' };
-  }
-  // Month-level precision — "1939-06" → "Jun 1939"
-  if (precision === 'month' || d.length === 7) {
-    const [y, m] = d.split('-');
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const mi = parseInt(m, 10) - 1;
-    if (mi >= 0 && mi < 12)
-      return { display: `${months[mi]} ${y}`, hint: '(month)' };
-    return { display: d.slice(0, 7) };
-  }
-  // Full date — "1939-06-30" → "Jun 30 1939"
-  if (d.length >= 10) {
-    const [y, m, day] = d.split('-');
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const mi = parseInt(m, 10) - 1;
-    if (mi >= 0 && mi < 12) {
-      const dayNum = parseInt(day, 10);
-      return { display: `${months[mi]} ${dayNum} ${y}` };
-    }
-  }
-  // Fallback: show raw string, no precision hint
-  return { display: d };
-}
-
-// Bottom-of-card tag rail. Characters, sequence, date, free-form tags,
-// and needs-research flag get rendered as color-coded pills with prefix
-// symbols. Clicking a chip dispatches a `filter:set` CustomEvent that
-// App.tsx listens for and applies to the archive view — keeps the
-// component decoupled from the filter state.
+// Bottom-of-card tag pile. Characters, sequence, year, and free-form tags
+// get shown as colored chips, color-coded by type. Clicking a chip
+// dispatches a `filter:set` CustomEvent that App.tsx listens for and
+// applies to the archive view — keeps the component decoupled from the
+// filter state.
 function TagPile({ sheet }: { sheet: ModelSheet }) {
-  const dateInfo = formatDateChip(sheet.date_on_sheet, sheet.date_precision);
+  const year = sheet.date_on_sheet?.slice(0, 4);
   const seqParts = sheet.sequence_association
     ? formatSequenceParts(sheet.sequence_association)
     : null;
@@ -407,7 +366,7 @@ function TagPile({ sheet }: { sheet: ModelSheet }) {
 
   // Nothing to show — skip the row entirely
   if (
-    !dateInfo &&
+    !year &&
     sheet.characters.length === 0 &&
     !seqParts &&
     sheet.tags.length === 0
@@ -415,75 +374,48 @@ function TagPile({ sheet }: { sheet: ModelSheet }) {
     return null;
   }
 
-  const hasIdentityRow =
-    sheet.characters.length > 0 || !!seqParts || !!dateInfo;
-
   return (
-    <>
-      {hasIdentityRow && (
-        <div className="card-tagpile">
-          {sheet.characters.map((c) => (
-            <button
-              key={`char-${c}`}
-              className="tagchip tagchip-char"
-              onClick={(e) => apply(e, 'character', c)}
-              title={`Filter by character: ${c}`}
-            >
-              <span className="tagchip-icon">@</span>
-              {c}
-            </button>
-          ))}
-          {seqParts && seqParts.number && (
-            <button
-              className="tagchip tagchip-seq"
-              onClick={(e) =>
-                apply(e, 'sequence_association', sheet.sequence_association!)
-              }
-              title="Filter by sequence"
-            >
-              <span className="tagchip-icon">§</span>
-              SQ {seqParts.number}
-            </button>
-          )}
-          {dateInfo && (
-            <button
-              className="tagchip tagchip-date"
-              onClick={(e) =>
-                apply(e, 'year', dateInfo.display.match(/\d{4}/)?.[0] || '')
-              }
-              title={`Filter by date: ${dateInfo.display}`}
-            >
-              <span className="tagchip-icon tagchip-icon-svg" aria-hidden="true">
-                <svg width="8" height="8" viewBox="0 0 8 8">
-                  <rect x="0" y="0" width="3" height="3" />
-                  <rect x="5" y="0" width="3" height="3" />
-                  <rect x="0" y="5" width="3" height="3" />
-                  <rect x="5" y="5" width="3" height="3" />
-                </svg>
-              </span>
-              {dateInfo.display}
-              {dateInfo.hint && (
-                <span className="tagchip-hint"> {dateInfo.hint}</span>
-              )}
-            </button>
-          )}
-        </div>
+    <div className="card-tagpile">
+      {sheet.characters.map((c) => (
+        <button
+          key={`char-${c}`}
+          className="tagchip tagchip-char"
+          onClick={(e) => apply(e, 'character', c)}
+          title={`Filter by character: ${c}`}
+        >
+          {c}
+        </button>
+      ))}
+      {seqParts && seqParts.number && (
+        <button
+          className="tagchip tagchip-seq"
+          onClick={(e) =>
+            apply(e, 'sequence_association', sheet.sequence_association!)
+          }
+          title="Filter by sequence"
+        >
+          SQ {seqParts.number}
+        </button>
       )}
-      {sheet.tags.length > 0 && (
-        <div className="card-tagpile card-tagzone">
-          {sheet.tags.map((t) => (
-            <button
-              key={`tag-${t}`}
-              className="tagchip tagchip-tag"
-              onClick={(e) => apply(e, 'tag', t)}
-              title={`Filter by tag: ${t}`}
-            >
-              <span className="tagchip-icon">#</span>
-              {t}
-            </button>
-          ))}
-        </div>
+      {year && (
+        <button
+          className="tagchip tagchip-date"
+          onClick={(e) => apply(e, 'year', year)}
+          title={`Filter by year: ${year}`}
+        >
+          {year}
+        </button>
       )}
-    </>
+      {sheet.tags.map((t) => (
+        <button
+          key={`tag-${t}`}
+          className="tagchip tagchip-tag"
+          onClick={(e) => apply(e, 'tag', t)}
+          title={`Filter by tag: ${t}`}
+        >
+          {t}
+        </button>
+      ))}
+    </div>
   );
 }

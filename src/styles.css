@@ -244,7 +244,6 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 .card {
   background: var(--paper);
   border: 1px solid rgba(201, 190, 166, 0.5);
-  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
   cursor: pointer;
@@ -254,7 +253,6 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   font-family: inherit;
   color: inherit;
   position: relative;
-  overflow: hidden;
 }
 
 .card:hover {
@@ -555,47 +553,24 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   color: var(--cream);
 }
 
-/* Close button — default styling assumes a paper background.
-   Override for modals that have the navy masthead treatment. */
+/* Close button gets contrast treatment when it sits on the navy masthead. */
 .modal-close {
   position: absolute;
   top: 14px;
   right: 16px;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  width: 30px;
-  height: 30px;
+  background: transparent;
+  border: 1px solid rgba(239, 233, 216, 0.3);
+  width: 28px;
+  height: 28px;
   font-family: var(--mono);
   font-size: 16px;
-  color: var(--ink-soft);
+  color: var(--cream);
   z-index: 2;
   cursor: pointer;
   line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 
-.modal-close:hover,
-.modal-close:focus-visible {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
-  outline: none;
-}
-
-/* When the modal has a navy masthead at the top, the close button sits
-   on dark navy for the first ~60px before scrolling. Use cream-on-navy
-   styling so the × reads on that backdrop. */
-.modal:has(.modal-masthead) .modal-close {
-  background: transparent;
-  border-color: rgba(239, 233, 216, 0.35);
-  color: var(--cream);
-}
-
-.modal:has(.modal-masthead) .modal-close:hover,
-.modal:has(.modal-masthead) .modal-close:focus-visible {
+.modal-close:hover {
   background: var(--cream);
   color: var(--navy);
   border-color: var(--cream);
@@ -766,27 +741,6 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   margin-bottom: 10px;
 }
 
-/* Button variant — visually identical until hover, then gains
-   affordance to indicate it's clickable. Clicking closes the modal
-   and scrolls to this sheet in the grid view. */
-.modal-id-button {
-  border: 1px solid transparent;
-  cursor: pointer;
-  font: inherit;
-  transition: background 0.12s, border-color 0.12s, transform 0.08s;
-}
-
-.modal-id-button:hover,
-.modal-id-button:focus-visible {
-  background: rgba(139, 46, 31, 0.14);
-  border-color: rgba(139, 46, 31, 0.3);
-  outline: none;
-}
-
-.modal-id-button:active {
-  transform: scale(0.97);
-}
-
 .modal-title {
   font-family: var(--serif);
   font-weight: 400;
@@ -805,13 +759,13 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   letter-spacing: 0;
   text-transform: none;
   color: var(--ink-soft);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .modal-section {
-  padding-bottom: 12px;
-  margin-bottom: 2px;
-  border-bottom: 1px solid rgba(201, 190, 166, 0.25);
+  padding-bottom: 18px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(201, 190, 166, 0.4);
 }
 
 .modal-section:last-of-type { border-bottom: none; }
@@ -871,7 +825,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 
 .rarity-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, max-content));
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin-top: 6px;
 }
@@ -1329,99 +1283,52 @@ button.btn-small,
 .card-tagpile {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px 5px;
+  gap: 4px 6px;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px dashed rgba(201, 190, 166, 0.6);
   line-height: 1.4;
 }
 
-/* Second row below card-tagpile — holds free-form #tag chips as their
-   own "topic zone" distinct from the identity chips above. Same visual
-   language but set apart by margin and a lighter separator. */
-.card-tagzone {
-  margin-top: 6px;
-  padding-top: 8px;
-  border-top: 1px dashed rgba(201, 190, 166, 0.35);
-}
-
 .tagchip {
-  background: var(--paper-deep);
-  border: 1px solid transparent;
-  padding: 3px 8px;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.03em;
+  background: transparent;
+  border: none;
+  padding: 2px 8px;
+  font-family: var(--serif);
+  font-size: 12px;
   border-radius: 999px;
   cursor: pointer;
-  transition: border-color 0.12s ease;
-  line-height: 1.4;
-  color: var(--ink-soft);
+  transition: background 0.12s ease;
+  line-height: 1.5;
 }
 
 .tagchip:hover {
-  border-color: var(--ink);
+  filter: brightness(0.92);
 }
 
-.tagchip-icon {
-  opacity: 0.5;
-  margin-right: 3px;
-}
-
-.tagchip-icon-svg {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: -1px;
-  margin-right: 4px;
-}
-
-.tagchip-icon-svg svg {
-  fill: currentColor;
-}
-
-.tagchip-hint {
-  font-style: italic;
-  opacity: 0.6;
-  margin-left: 2px;
-  font-family: var(--serif);
-}
-
-/* Character — warm brown on faded cream */
 .tagchip-char {
-  background: #eadccf;
-  color: #6b3d1f;
-}
-
-/* Sequence — navy on muted blue-gray, tying to the masthead */
-.tagchip-seq {
-  background: #d8dbe2;
-  color: var(--navy);
-}
-
-/* Date — deep red on faded terra cotta, tying to the --accent */
-.tagchip-date {
-  background: #ead7d1;
+  background: rgba(139, 46, 31, 0.08);
   color: var(--accent);
 }
 
-/* Tag — olive on faded green, tying to --success */
-.tagchip-tag {
-  background: #dce4d0;
-  color: var(--success);
+.tagchip-seq {
+  background: rgba(212, 168, 75, 0.14);
+  color: #8b6a1a;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
 }
 
-/* Needs research — amber on pale amber, bolder weight for status emphasis */
-.tagchip-needs {
-  background: #f0e3c5;
-  color: var(--warn);
-  font-weight: 600;
-  padding: 3px 8px;
+.tagchip-date {
+  background: rgba(74, 107, 58, 0.12);
+  color: #3b5a26;
   font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.03em;
-  border-radius: 999px;
-  line-height: 1.4;
-  cursor: default;
+  font-size: 11px;
+}
+
+.tagchip-tag {
+  background: rgba(107, 93, 79, 0.1);
+  color: var(--ink-soft);
 }
 
 /* ---------- Card body: ID + badges inline row ---------- */
@@ -1488,522 +1395,4 @@ button.btn-small,
   line-height: 1.3;
   margin: 4px 0 0;
   color: var(--ink);
-}
-
-/* ---------- Dialog (styled replacement for prompt/confirm/alert) ---------- */
-
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(26, 23, 19, 0.6);
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 20px;
-}
-
-.dialog {
-  background: var(--paper);
-  border: 1px solid rgba(201, 190, 166, 0.7);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 20px 40px rgba(26, 23, 19, 0.3);
-  width: 100%;
-  max-width: 440px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  animation: dialog-in 0.15s ease-out;
-}
-
-@keyframes dialog-in {
-  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-.dialog-header {
-  padding: 20px 24px 12px;
-  border-bottom: 1px solid rgba(201, 190, 166, 0.4);
-}
-
-.dialog-title {
-  font-family: var(--serif);
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--ink);
-  margin: 0;
-  line-height: 1.3;
-}
-
-.dialog-body {
-  padding: 16px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.dialog-message {
-  font-family: var(--serif);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--ink-soft);
-  margin: 0;
-}
-
-.dialog-input {
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  font-family: var(--serif);
-  font-size: 14px;
-  color: var(--ink);
-  width: 100%;
-  outline: none;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
-}
-
-.dialog-input:focus {
-  border-color: var(--ink-soft);
-  box-shadow: 0 0 0 3px rgba(139, 46, 31, 0.08);
-}
-
-.dialog-actions {
-  padding: 14px 24px 18px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  border-top: 1px solid rgba(201, 190, 166, 0.4);
-  background: rgba(235, 228, 213, 0.3);
-}
-
-.dialog-btn {
-  font-family: var(--serif);
-  font-size: 14px;
-  padding: 8px 18px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
-  border: 1px solid transparent;
-  line-height: 1.3;
-}
-
-.dialog-btn-cancel {
-  background: transparent;
-  border-color: var(--rule);
-  color: var(--ink-soft);
-}
-
-.dialog-btn-cancel:hover {
-  border-color: var(--ink-soft);
-  background: rgba(235, 228, 213, 0.5);
-}
-
-.dialog-btn-confirm {
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.dialog-btn-confirm:hover {
-  background: var(--ink-soft);
-}
-
-.dialog-btn-destructive {
-  background: var(--accent);
-  color: var(--paper);
-}
-
-.dialog-btn-destructive:hover {
-  background: #6b2316;
-}
-
-/* ---------- Vocabulary health check panel ---------- */
-
-.vocab-tab {
-  background: transparent;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
-  padding: 6px 12px;
-  font-family: var(--serif);
-  font-size: 13px;
-  color: var(--ink-soft);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: border-color 0.12s ease, background 0.12s ease;
-}
-
-.vocab-tab:hover {
-  border-color: var(--ink-soft);
-}
-
-.vocab-tab.active {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
-}
-
-.vocab-tab-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  background: var(--warn);
-  color: var(--paper);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 600;
-  border-radius: 999px;
-  line-height: 1;
-}
-
-.vocab-entries {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 4px;
-}
-
-.vocab-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  transition: background 0.12s ease, border-color 0.12s ease;
-}
-
-.vocab-row:hover {
-  background: rgba(235, 228, 213, 0.4);
-  border-color: rgba(201, 190, 166, 0.5);
-}
-
-.vocab-row.unreviewed .vocab-row-canonical {
-  /* subtle amber dot indicator for unreviewed entries */
-  position: relative;
-  padding-left: 14px;
-}
-
-.vocab-row.unreviewed .vocab-row-canonical::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 7px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--warn);
-  opacity: 0.7;
-}
-
-.vocab-row-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.vocab-row-canonical {
-  font-family: var(--serif);
-  font-size: 15px;
-  color: var(--ink);
-  line-height: 1.3;
-}
-
-.vocab-row-aliases {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
-}
-
-.vocab-alias {
-  font-family: var(--mono);
-  font-size: 10px;
-  padding: 1px 6px;
-  background: var(--paper-deep);
-  color: var(--ink-faded);
-  border-radius: 999px;
-  line-height: 1.4;
-}
-
-.vocab-row-notes {
-  font-family: var(--serif);
-  font-style: italic;
-  font-size: 12px;
-  color: var(--ink-faded);
-  margin-top: 4px;
-  line-height: 1.4;
-}
-
-.vocab-row-actions {
-  flex-shrink: 0;
-}
-
-.vocab-status.reviewed {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--success);
-  letter-spacing: 0.05em;
-}
-
-.vocab-review-btn {
-  font-size: 11px;
-  padding: 4px 10px;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  color: var(--ink-soft);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-family: var(--serif);
-  transition: border-color 0.12s, background 0.12s;
-}
-
-.vocab-review-btn:hover {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
-}
-
-/* ---------- Vocabulary lint (inline warnings below tag inputs) ---------- */
-
-.vocab-lint {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.vocab-lint-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  font-family: var(--serif);
-  font-size: 12px;
-  line-height: 1.4;
-  flex-wrap: wrap;
-}
-
-.vocab-lint-alias {
-  background: rgba(74, 107, 58, 0.08); /* light olive — "we know this one" */
-  color: var(--success);
-}
-
-.vocab-lint-case {
-  background: rgba(168, 122, 58, 0.08); /* light amber — "small fix" */
-  color: var(--warn);
-}
-
-.vocab-lint-unknown {
-  background: rgba(139, 46, 31, 0.06); /* light terra cotta — "needs attention" */
-  color: var(--accent);
-}
-
-.vocab-lint-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.06);
-  font-family: var(--mono);
-  font-size: 10px;
-  flex-shrink: 0;
-}
-
-.vocab-lint-text {
-  flex: 1;
-  min-width: 0;
-  color: var(--ink-soft);
-}
-
-.vocab-lint-input {
-  font-family: var(--mono);
-  font-size: 11px;
-  background: var(--paper-deep);
-  padding: 1px 6px;
-  border-radius: 999px;
-  color: var(--ink);
-}
-
-.vocab-lint-canonical {
-  font-family: var(--mono);
-  font-size: 11px;
-  background: rgba(74, 107, 58, 0.15);
-  padding: 1px 6px;
-  border-radius: 999px;
-  color: var(--success);
-  font-weight: 500;
-}
-
-.vocab-lint-btn {
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  padding: 3px 10px;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.05em;
-  color: var(--ink-soft);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
-}
-
-.vocab-lint-btn:hover:not(:disabled) {
-  border-color: var(--ink-soft);
-}
-
-.vocab-lint-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.vocab-lint-btn-primary {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
-}
-
-.vocab-lint-btn-primary:hover:not(:disabled) {
-  background: var(--ink-soft);
-  border-color: var(--ink-soft);
-}
-
-/* ---------- Research status dot (lower-left of card) ---------- */
-
-.research-dot {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  pointer-events: auto;
-  cursor: help;
-  /* Subtle ring for visibility against any background */
-  box-shadow: 0 0 0 1px rgba(26, 23, 19, 0.08);
-}
-
-.research-dot-complete {
-  background: #4a6b3a; /* olive / success */
-}
-
-.research-dot-some {
-  background: #c9a645; /* muted warm yellow */
-}
-
-.research-dot-stub {
-  background: #a8392a; /* muted red, in the terra-cotta family */
-}
-
-/* ---------- Research status row (detail view) ---------- */
-/* Dot + label shown under the title. Uses the same color system as the
-   card dot but is inline, sized a touch larger with room for a readable
-   label beside it. */
-
-.research-status-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.research-dot-inline {
-  position: static;
-  width: 9px;
-  height: 9px;
-  flex-shrink: 0;
-  /* Drop the absolute-position cursor from the card variant */
-  cursor: default;
-}
-
-.research-status-label {
-  font-family: var(--serif);
-  font-style: italic;
-  font-size: 12px;
-  color: var(--ink-faded);
-}
-
-/* Muted "Delete record…" action — pushed far right in detail-view
-   actions row, styled as plain text until hovered. Destructive styling
-   reveals on hover/focus so the user has a clear visual moment before
-   they click, but the button doesn't scream "click me" on the page.
-   A confirmation dialog still guards the actual deletion. */
-.btn-delete-muted {
-  background: transparent;
-  border: none;
-  padding: 6px 8px;
-  font-family: var(--serif);
-  font-size: 12px;
-  font-style: italic;
-  color: var(--ink-faded);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition: background 0.12s, color 0.12s;
-}
-
-.btn-delete-muted:hover,
-.btn-delete-muted:focus-visible {
-  background: rgba(139, 46, 31, 0.08);
-  color: var(--error);
-  outline: none;
-}
-
-/* Keyboard shortcut hint — pinned to the bottom-right corner.
-   Kept small and muted but legible. Hidden under 900px wide, since
-   shortcut hints aren't useful on touch/mobile anyway and the
-   fixed-position footer overlaps content on narrow viewports. */
-.keyboard-hint {
-  position: fixed;
-  bottom: 14px;
-  right: 18px;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--ink-faded);
-  letter-spacing: 0.03em;
-  text-align: right;
-  line-height: 1.6;
-  pointer-events: none;
-  user-select: none;
-  background: rgba(244, 239, 230, 0.8);
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  backdrop-filter: blur(2px);
-}
-
-@media (max-width: 900px) {
-  .keyboard-hint { display: none; }
-}
-
-/* Pulse animation — briefly highlights a card that was scrolled to via
-   "see in context" (clicking a sheet ID in detail view). Warm amber
-   glow that fades out over ~1.2s. Stays additive so focus outlines
-   and selection outlines still work during the animation. */
-@keyframes sheet-pulse-glow {
-  0% {
-    box-shadow: 0 0 0 0 rgba(212, 168, 75, 0.6),
-                0 8px 24px rgba(26, 23, 19, 0.1);
-  }
-  40% {
-    box-shadow: 0 0 0 6px rgba(212, 168, 75, 0.25),
-                0 8px 24px rgba(26, 23, 19, 0.1);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(212, 168, 75, 0),
-                0 8px 24px rgba(26, 23, 19, 0.1);
-  }
-}
-
-.sheet-pulse {
-  animation: sheet-pulse-glow 1.2s ease-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sheet-pulse { animation: none; }
 }
