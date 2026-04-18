@@ -1570,3 +1570,261 @@ button.btn-small,
 .dialog-btn-destructive:hover {
   background: #6b2316;
 }
+
+/* ---------- Vocabulary health check panel ---------- */
+
+.vocab-tab {
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-family: var(--serif);
+  font-size: 13px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.vocab-tab:hover {
+  border-color: var(--ink-soft);
+}
+
+.vocab-tab.active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.vocab-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--warn);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 999px;
+  line-height: 1;
+}
+
+.vocab-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.vocab-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.vocab-row:hover {
+  background: rgba(235, 228, 213, 0.4);
+  border-color: rgba(201, 190, 166, 0.5);
+}
+
+.vocab-row.unreviewed .vocab-row-canonical {
+  /* subtle amber dot indicator for unreviewed entries */
+  position: relative;
+  padding-left: 14px;
+}
+
+.vocab-row.unreviewed .vocab-row-canonical::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  opacity: 0.7;
+}
+
+.vocab-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.vocab-row-canonical {
+  font-family: var(--serif);
+  font-size: 15px;
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+.vocab-row-aliases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.vocab-alias {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  background: var(--paper-deep);
+  color: var(--ink-faded);
+  border-radius: 999px;
+  line-height: 1.4;
+}
+
+.vocab-row-notes {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-faded);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.vocab-row-actions {
+  flex-shrink: 0;
+}
+
+.vocab-status.reviewed {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--success);
+  letter-spacing: 0.05em;
+}
+
+.vocab-review-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--serif);
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.vocab-review-btn:hover {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+/* ---------- Vocabulary lint (inline warnings below tag inputs) ---------- */
+
+.vocab-lint {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.vocab-lint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-family: var(--serif);
+  font-size: 12px;
+  line-height: 1.4;
+  flex-wrap: wrap;
+}
+
+.vocab-lint-alias {
+  background: rgba(74, 107, 58, 0.08); /* light olive — "we know this one" */
+  color: var(--success);
+}
+
+.vocab-lint-case {
+  background: rgba(168, 122, 58, 0.08); /* light amber — "small fix" */
+  color: var(--warn);
+}
+
+.vocab-lint-unknown {
+  background: rgba(139, 46, 31, 0.06); /* light terra cotta — "needs attention" */
+  color: var(--accent);
+}
+
+.vocab-lint-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.06);
+  font-family: var(--mono);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.vocab-lint-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-soft);
+}
+
+.vocab-lint-input {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--paper-deep);
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--ink);
+}
+
+.vocab-lint-canonical {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: rgba(74, 107, 58, 0.15);
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--success);
+  font-weight: 500;
+}
+
+.vocab-lint-btn {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  padding: 3px 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.vocab-lint-btn:hover:not(:disabled) {
+  border-color: var(--ink-soft);
+}
+
+.vocab-lint-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vocab-lint-btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.vocab-lint-btn-primary:hover:not(:disabled) {
+  background: var(--ink-soft);
+  border-color: var(--ink-soft);
+}

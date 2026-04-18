@@ -24,6 +24,7 @@ import {
 import { TagInput } from './TagInput';
 import { AutocompleteInput } from './AutocompleteInput';
 import { ExtractionReview } from './ExtractionReview';
+import { VocabularyLint } from './VocabularyLint';
 import { tesseractExtractor } from '../lib/extraction/tesseract';
 import { claudeExtractor, claudeUrlExtractor, getApiKey as getAnthropicKey } from '../lib/extraction/claude';
 import type { ExtractionResult } from '../lib/extraction/types';
@@ -620,6 +621,11 @@ export function SheetEdit({
                 <span className="form-hint">
                   Enter to add, Backspace to remove, ↓ to browse
                 </span>
+                <VocabularyLint
+                  kind="characters"
+                  values={draft.characters}
+                  onValuesChange={(v) => update('characters', v)}
+                />
               </div>
 
               <div className="form-field">
@@ -831,6 +837,11 @@ export function SheetEdit({
                   onChange={(v) => update('tags', v)}
                   suggestions={vocab.tags}
                   placeholder="deleted_sequence, approved"
+                />
+                <VocabularyLint
+                  kind="tags"
+                  values={draft.tags}
+                  onValuesChange={(v) => update('tags', v)}
                 />
               </div>
 

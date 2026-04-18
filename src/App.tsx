@@ -30,6 +30,8 @@ import { Settings } from './components/Settings';
 import { BulkImport } from './components/BulkImport';
 import { ManageLists } from './components/ManageLists';
 import { useDialog } from './components/Dialog';
+import { VocabularyHealth } from './components/VocabularyHealth';
+import { useVocabulary } from './components/VocabularyProvider';
 
 type SortMode =
   | 'number'
@@ -94,7 +96,9 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [showManageLists, setShowManageLists] = useState(false);
+  const [showVocabularyHealth, setShowVocabularyHealth] = useState(false);
   const { promptDialog, confirmDialog } = useDialog();
+  const vocabulary = useVocabulary();
   // Select mode toggles checkboxes on cards; in this mode clicking a card
   // toggles selection rather than opening the detail view. Used for
   // bulk "add to list" operations.
@@ -169,12 +173,22 @@ export default function App() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((raw) => setData(migrateArchive(raw)))
+      .then((raw) => {
+        const migrated = migrateArchive(raw);
+        setData(migrated);
+        // Seed the vocabulary from these sheets if vocabulary.json
+        // doesn't yet exist. Silent no-op if already seeded or if
+        // the user isn't authenticated.
+        void vocabulary.seedIfMissing(migrated.sheets);
+      })
       .catch((e) => {
         console.warn('Could not load sheets.json, starting empty:', e);
         setData({ schema_version: 5, sheets: [] });
         setLoadError(e.message);
       });
+    // Only run once on mount; vocabulary.seedIfMissing is stable enough
+    // that including it in deps would re-trigger the fetch unnecessarily.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-reverify pending Wayback captures when data loads. Runs in the
@@ -763,6 +777,7 @@ export default function App() {
         else if (creatingNew) setCreatingNew(false);
         else if (showSettings) handleCloseSettings();
         else if (showManageLists) setShowManageLists(false);
+        else if (showVocabularyHealth) setShowVocabularyHealth(false);
         else if (showBulk) setShowBulk(false);
       },
     },
@@ -859,6 +874,36 @@ export default function App() {
             <button onClick={handleExportCSV} title="Export filtered CSV">
               Export CSV
             </button>
+            {isAuthenticated && (
+              <button
+                onClick={() => setShowVocabularyHealth(true)}
+                title="Vocabulary health check"
+              >
+                Vocabulary
+                {(() => {
+                  const unreviewed =
+                    vocabulary.vocab.characters.filter((e) => !e.reviewed)
+                      .length +
+                    vocabulary.vocab.tags.filter((e) => !e.reviewed).length;
+                  if (unreviewed === 0) return null;
+                  return (
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        background: 'var(--warn)',
+                        color: 'var(--paper)',
+                        fontSize: 9,
+                        padding: '1px 5px',
+                        borderRadius: 999,
+                        fontFamily: 'var(--mono)',
+                      }}
+                    >
+                      {unreviewed}
+                    </span>
+                  );
+                })()}
+              </button>
+            )}
             <button onClick={() => setShowSettings(true)} title="Settings">
               Settings
             </button>
@@ -1311,6 +1356,12 @@ export default function App() {
         <ManageLists
           onClose={() => setShowManageLists(false)}
           onChange={bumpLists}
+        />
+      )}
+
+      {showVocabularyHealth && (
+        <VocabularyHealth
+          onClose={() => setShowVocabularyHealth(false)}
         />
       )}
 
