@@ -20,21 +20,15 @@
     {
       "canonical": "Shark",
       "aliases": [],
-      "reviewed": false,
-      "added_at": "2026-04-18T21:32:38.494Z"
+      "reviewed": true,
+      "added_at": "2026-04-18T21:32:38.494Z",
+      "reviewed_at": "2026-04-18T21:47:58.338Z"
     },
     {
       "canonical": "Fish",
       "aliases": [],
       "reviewed": false,
-      "added_at": "2026-04-18T21:32:59.724Z"
-    },
-    {
-      "canonical": "Animal",
-      "aliases": [],
-      "reviewed": true,
-      "added_at": "2026-04-18T21:33:01.365Z",
-      "reviewed_at": "2026-04-18T21:47:46.859Z"
+      "added_at": "2026-04-18T23:21:23.358Z"
     }
   ]
 }
