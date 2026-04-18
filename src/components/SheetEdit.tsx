@@ -9,8 +9,11 @@ import type {
   DatePrecision,
   WebOccurrenceReading,
   ProductionStamp,
+  ArchiveStatus,
 } from '../types/schema';
 import { parseSheetNumber } from '../lib/sheets';
+import { inferSource, normalizeUrl } from '../lib/sourceInference';
+import { captureWayback, verifyWayback } from '../lib/archive';
 import {
   getImageDimensions,
   formatResolution,
@@ -548,7 +551,7 @@ export function SheetEdit({
                     update('sequence_association', v || undefined)
                   }
                   suggestions={vocab.sequences}
-                  placeholder="Girls of All Nations"
+                  placeholder="e.g., 1.5 or 4.2"
                 />
                 {draft.sequence_association && (
                   <div
@@ -691,25 +694,6 @@ export function SheetEdit({
               </div>
 
               <div className="form-field">
-                <label className="form-label">
-                  In My Physical Collection
-                </label>
-                <select
-                  className="form-select"
-                  value={draft.in_my_physical_collection ? 'yes' : 'no'}
-                  onChange={(e) =>
-                    update(
-                      'in_my_physical_collection',
-                      e.target.value === 'yes'
-                    )
-                  }
-                >
-                  <option value="no">No — reference image only</option>
-                  <option value="yes">Yes — physical sheet owned</option>
-                </select>
-              </div>
-
-              <div className="form-field">
                 <label className="form-label">Confidence</label>
                 <select
                   className="form-select"
@@ -814,6 +798,7 @@ export function SheetEdit({
                   items={draft.image_sources}
                   onChange={(v) => update('image_sources', v)}
                   sourceSuggestions={vocab.sourceNames}
+                  sheetImageUrl={publicImageUrl || undefined}
                 />
               </div>
 
@@ -1149,10 +1134,12 @@ function RepeatableImageSources({
   items,
   onChange,
   sourceSuggestions,
+  sheetImageUrl,
 }: {
   items: ImageSource[];
   onChange: (v: ImageSource[]) => void;
   sourceSuggestions: { value: string; count: number }[];
+  sheetImageUrl?: string; // for "Search on Google Lens" against the current sheet image
 }) {
   const add = () =>
     onChange([
@@ -1164,6 +1151,7 @@ function RepeatableImageSources({
         retrieved: new Date().toISOString().slice(0, 10),
         watermark: '',
         notes: '',
+        archive_status: 'not_attempted',
       },
     ]);
   const remove = (i: number) =>
@@ -1171,8 +1159,150 @@ function RepeatableImageSources({
   const setItem = (i: number, patch: Partial<ImageSource>) =>
     onChange(items.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
 
+  // "Quick add" flow: user pastes a URL, app auto-populates source_name/type
+  // from domain inference, fires Wayback capture in background.
+  const [quickUrl, setQuickUrl] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // Keep a ref to the latest items so background verify callbacks can
+  // read them without stale closure — onChange isn't a functional setter,
+  // so we can't call onChange(prev => ...).
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  const doQuickAdd = async () => {
+    const url = quickUrl.trim();
+    if (!url) return;
+    setBusy(true);
+    try {
+      const normalized = normalizeUrl(url);
+      const inference = inferSource(normalized);
+      const newSource: ImageSource = {
+        url: normalized,
+        source_type: inference?.source_type ?? 'unknown',
+        source_name: inference?.source_name ?? '',
+        retrieved: new Date().toISOString().slice(0, 10),
+        watermark: '',
+        notes: '',
+        source_name_inferred: inference?.confident,
+        source_type_inferred: inference?.confident,
+        archive_status: 'pending',
+        archive_captured_at: new Date().toISOString(),
+        archive_url: `https://web.archive.org/web/${normalized}`,
+      };
+      const updated = [...items, newSource];
+      onChange(updated);
+      setQuickUrl('');
+
+      // Fire capture + verify in background. Uses itemsRef to read the
+      // latest state at verify time — the user may have added or removed
+      // other rows before this resolves.
+      void (async () => {
+        try {
+          await captureWayback(normalized);
+          await new Promise((r) => setTimeout(r, 30000));
+          const result = await verifyWayback(normalized);
+          const current = itemsRef.current;
+          onChange(
+            current.map((s) =>
+              s.url === normalized
+                ? {
+                    ...s,
+                    archive_status: result.status,
+                    archive_url: result.archive_url || s.archive_url,
+                  }
+                : s
+            )
+          );
+        } catch (e) {
+          console.warn('Wayback flow error:', e);
+        }
+      })();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const recapture = async (i: number) => {
+    const item = items[i];
+    if (!item.url) return;
+    setItem(i, {
+      archive_status: 'pending',
+      archive_captured_at: new Date().toISOString(),
+    });
+    try {
+      await captureWayback(item.url);
+      await new Promise((r) => setTimeout(r, 30000));
+      const result = await verifyWayback(item.url);
+      setItem(i, {
+        archive_status: result.status,
+        archive_url: result.archive_url || item.archive_url,
+      });
+    } catch {
+      setItem(i, { archive_status: 'failed' });
+    }
+  };
+
   return (
     <div className="form-repeatable">
+      {/* Quick add from URL */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 6,
+          padding: '8px 10px',
+          background: 'var(--paper-deep)',
+          border: '1px dashed var(--rule)',
+          alignItems: 'center',
+        }}
+      >
+        <input
+          type="text"
+          className="form-input"
+          value={quickUrl}
+          placeholder="Paste URL to add a source (auto-fills + archives to Wayback)"
+          onChange={(e) => setQuickUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void doQuickAdd();
+            }
+          }}
+          style={{ flex: 1, minWidth: 0 }}
+          disabled={busy}
+        />
+        <button
+          type="button"
+          className="btn-small"
+          onClick={() => void doQuickAdd()}
+          disabled={busy || !quickUrl.trim()}
+          title="Add source, auto-fill fields, capture to Wayback"
+        >
+          {busy ? 'Adding…' : '+ Add'}
+        </button>
+        {sheetImageUrl && (
+          <button
+            type="button"
+            className="btn-small"
+            onClick={() =>
+              window.open(
+                `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(
+                  sheetImageUrl
+                )}`,
+                '_blank',
+                'noopener,noreferrer'
+              )
+            }
+            title="Open Google Lens in new tab — paste a result URL above to add"
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            ↗ Lens
+          </button>
+        )}
+      </div>
+
       {items.length === 0 && (
         <span className="form-hint">None yet.</span>
       )}
@@ -1196,29 +1326,56 @@ function RepeatableImageSources({
               alignItems: 'start',
             }}
           >
-            <select
-              className="form-select"
-              value={item.source_type}
-              onChange={(e) =>
-                setItem(i, { source_type: e.target.value as ImageSourceType })
-              }
-            >
-              <option value="unknown">Unknown source</option>
-              <option value="auction_listing">Auction listing</option>
-              <option value="published_book">Published book</option>
-              <option value="archive_website">Archive website</option>
-              <option value="fan_site">Fan site</option>
-              <option value="social_media">Social media</option>
-              <option value="personal_photograph">Personal photograph</option>
-              <option value="disney_archives">Disney Archives</option>
-              <option value="other">Other</option>
-            </select>
-            <AutocompleteInput
-              value={item.source_name || ''}
-              onChange={(v) => setItem(i, { source_name: v })}
-              suggestions={sourceSuggestions}
-              placeholder="Source name (e.g. Heritage)"
-            />
+            <div>
+              <select
+                className="form-select"
+                value={item.source_type}
+                onChange={(e) =>
+                  setItem(i, {
+                    source_type: e.target.value as ImageSourceType,
+                    source_type_inferred: false,
+                  })
+                }
+                style={{ width: '100%' }}
+              >
+                <option value="unknown">Unknown source</option>
+                <option value="auction_listing">Auction listing</option>
+                <option value="published_book">Published book</option>
+                <option value="archive_website">Archive website</option>
+                <option value="fan_site">Fan site</option>
+                <option value="social_media">Social media</option>
+                <option value="personal_photograph">Personal photograph</option>
+                <option value="disney_archives">Disney Archives</option>
+                <option value="other">Other</option>
+              </select>
+              {item.source_type_inferred && (
+                <BestGuessBadge
+                  onConfirm={() =>
+                    setItem(i, { source_type_inferred: false })
+                  }
+                />
+              )}
+            </div>
+            <div>
+              <AutocompleteInput
+                value={item.source_name || ''}
+                onChange={(v) =>
+                  setItem(i, {
+                    source_name: v,
+                    source_name_inferred: false,
+                  })
+                }
+                suggestions={sourceSuggestions}
+                placeholder="Source name (e.g. Heritage)"
+              />
+              {item.source_name_inferred && (
+                <BestGuessBadge
+                  onConfirm={() =>
+                    setItem(i, { source_name_inferred: false })
+                  }
+                />
+              )}
+            </div>
             <button
               type="button"
               className="btn-small"
@@ -1250,11 +1407,62 @@ function RepeatableImageSources({
               onChange={(e) => setItem(i, { retrieved: e.target.value })}
             />
           </div>
+          {/* Archive status row */}
+          {item.url && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 11,
+                fontFamily: 'var(--mono)',
+                color: 'var(--ink-faded)',
+                letterSpacing: '0.05em',
+              }}
+            >
+              <ArchiveStatusPill status={item.archive_status} />
+              {item.archive_url &&
+                (item.archive_status === 'verified' ||
+                  item.archive_status === 'pending') && (
+                  <a
+                    href={item.archive_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: 'var(--accent)' }}
+                  >
+                    View on Wayback ↗
+                  </a>
+                )}
+              {(item.archive_status === 'not_attempted' ||
+                item.archive_status === 'failed') && (
+                <button
+                  type="button"
+                  className="btn-small"
+                  onClick={() => void recapture(i)}
+                  style={{ fontSize: 10, padding: '2px 6px' }}
+                  title={
+                    item.archive_status === 'failed'
+                      ? 'Retry Wayback capture'
+                      : 'Capture this URL to the Wayback Machine'
+                  }
+                >
+                  {item.archive_status === 'failed'
+                    ? 'Retry capture'
+                    : 'Capture to Wayback'}
+                </button>
+              )}
+              {item.archive_captured_at && (
+                <span>
+                  captured {item.archive_captured_at.slice(0, 10)}
+                </span>
+              )}
+            </div>
+          )}
           <input
             type="text"
             className="form-input"
             value={item.watermark || ''}
-            placeholder="Watermark / stamp (e.g. Heritage cert #12345)"
+            placeholder="Watermark / stamp (e.g. cert #12345)"
             onChange={(e) => setItem(i, { watermark: e.target.value })}
           />
           <input
@@ -1272,9 +1480,86 @@ function RepeatableImageSources({
         onClick={add}
         style={{ alignSelf: 'flex-start' }}
       >
-        + Add source
+        + Add blank source
       </button>
     </div>
+  );
+}
+
+// Small clickable "best guess" badge shown next to auto-filled fields.
+// Clicking it confirms the value (clears the inferred flag), removing the
+// badge. Editing the field directly also implicitly clears the flag.
+function BestGuessBadge({ onConfirm }: { onConfirm: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onConfirm}
+      title="Click to confirm (removes this badge)"
+      style={{
+        marginTop: 2,
+        padding: '1px 6px',
+        fontSize: 9,
+        fontFamily: 'var(--mono)',
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+        background: 'var(--paper-deep)',
+        border: '1px solid var(--warn)',
+        color: 'var(--warn)',
+        cursor: 'pointer',
+      }}
+    >
+      best guess · confirm?
+    </button>
+  );
+}
+
+function ArchiveStatusPill({ status }: { status?: ArchiveStatus }) {
+  const s = status || 'not_attempted';
+  const colors: Record<ArchiveStatus, { bg: string; fg: string; text: string }> = {
+    verified: {
+      bg: 'var(--paper-deep)',
+      fg: 'var(--success)',
+      text: 'Wayback: verified',
+    },
+    pending: {
+      bg: 'var(--paper-deep)',
+      fg: 'var(--warn)',
+      text: 'Wayback: pending…',
+    },
+    failed: {
+      bg: 'var(--paper-deep)',
+      fg: 'var(--danger)',
+      text: 'Wayback: failed',
+    },
+    not_attempted: {
+      bg: 'var(--paper-deep)',
+      fg: 'var(--ink-faded)',
+      text: 'Wayback: not captured',
+    },
+  };
+  const c = colors[s];
+  return (
+    <span
+      style={{
+        padding: '1px 6px',
+        border: `1px solid ${c.fg}`,
+        color: c.fg,
+        background: c.bg,
+        fontSize: 10,
+        letterSpacing: '0.05em',
+      }}
+      title={
+        s === 'failed'
+          ? 'Snapshot does not resolve — robots.txt block or site unreachable'
+          : s === 'pending'
+          ? 'Capture fired, waiting for verification'
+          : s === 'verified'
+          ? 'Snapshot exists and resolves on Wayback Machine'
+          : 'URL has not been submitted to Wayback Machine'
+      }
+    >
+      {c.text}
+    </span>
   );
 }
 

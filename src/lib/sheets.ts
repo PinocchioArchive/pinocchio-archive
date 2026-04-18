@@ -50,6 +50,68 @@ export function guessSheetNumberFromFilename(filename: string): string | null {
 
 // Sorts sheets by numeric part first, then by suffix.
 // Ensures M19-A < M23-A < M174-A < M231-A rather than lexical ordering.
+// Splits a free-text sequence_association into its leading number part and
+// any descriptive text after it. Used by UI components that want to render
+// the number in monospace and the descriptive text in italics to signal
+// their different epistemic status (number = confirmed, name = inference).
+//
+//   "4.2"              → { number: "4.2", rest: "" }
+//   "4.2 Stromboli"    → { number: "4.2", rest: "Stromboli" }
+//   "4.2 - Stromboli"  → { number: "4.2", rest: "Stromboli" }
+//   "Stromboli"        → { number: "",    rest: "Stromboli" }
+//   ""                 → { number: "",    rest: "" }
+export function formatSequenceParts(s: string | undefined): {
+  number: string;
+  rest: string;
+} {
+  if (!s) return { number: '', rest: '' };
+  const trimmed = s.trim();
+  const m = trimmed.match(/^(\d+(?:\.\d+)?)\s*[-—:]?\s*(.*)$/);
+  if (!m || !m[1]) return { number: '', rest: trimmed };
+  return { number: m[1], rest: (m[2] || '').trim() };
+}
+
+// Parses the leading sequence number from a free-text sequence_association
+// field. Disney sequence numbers look like "1.5", "4.2", "4.10". Returns
+// a tuple of [major, minor] integers for safe numeric comparison (so that
+// 4.10 sorts after 4.2, unlike naive float parsing). Returns null if no
+// leading number is detectable.
+//
+// Accepts:
+//   "4.2"                    → [4, 2]
+//   "4.10"                   → [4, 10]
+//   "1.5 Give a Little..."   → [1, 5]  (ignores trailing text)
+//   "Stromboli"              → null
+//   ""                       → null
+export function parseSequenceNumber(
+  s: string | undefined
+): [number, number] | null {
+  if (!s) return null;
+  const m = s.trim().match(/^(\d+)(?:\.(\d+))?/);
+  if (!m) return null;
+  const major = parseInt(m[1], 10);
+  const minor = m[2] ? parseInt(m[2], 10) : 0;
+  if (isNaN(major)) return null;
+  return [major, minor];
+}
+
+// Sorts sheets by the leading number in their sequence_association field.
+// Sheets with no sequence number sort to the end, preserving numerical
+// ordering for everything else. Tiebreaker: sheet number.
+export function compareSheetsBySequence(
+  a: ModelSheet,
+  b: ModelSheet
+): number {
+  const aSeq = parseSequenceNumber(a.sequence_association);
+  const bSeq = parseSequenceNumber(b.sequence_association);
+  if (!aSeq && !bSeq) return compareSheets(a, b);
+  if (!aSeq) return 1; // no-seq sorts last
+  if (!bSeq) return -1;
+  if (aSeq[0] !== bSeq[0]) return aSeq[0] - bSeq[0];
+  if (aSeq[1] !== bSeq[1]) return aSeq[1] - bSeq[1];
+  return compareSheets(a, b);
+}
+
 export function compareSheets(a: ModelSheet, b: ModelSheet): number {
   if (a.sheet_number_numeric !== b.sheet_number_numeric) {
     return a.sheet_number_numeric - b.sheet_number_numeric;
@@ -102,7 +164,6 @@ export function makeEmptySheet(
     approvals: defaults.approvals || [],
     image_file: '',
     image_sources: [],
-    in_my_physical_collection: false,
     published_references: [],
     web_occurrences: [],
     rarity: {
@@ -123,10 +184,11 @@ export function makeEmptySheet(
 // Migrate older schema versions up to the current one.
 // v1 → v2: add needs_research, web_occurrences
 // v2 → v3: rename sequence → sequence_association, add production_stamps
+// v3 → v4: strip in_my_physical_collection — ownership now lives in per-visitor
+//          local lists (see lib/lists.ts), not in the public archive.
 export function migrateArchive(raw: any): ArchiveData {
   const version = raw?.schema_version ?? 1;
   const sheets: ModelSheet[] = (raw?.sheets || []).map((s: any) => {
-    // v2 → v3 field rename
     const seqAssoc =
       s.sequence_association !== undefined
         ? s.sequence_association
@@ -140,20 +202,25 @@ export function migrateArchive(raw: any): ArchiveData {
       image_sources: (s.image_sources || []).map((src: any) => ({
         ...src,
         watermark: src.watermark,
+        // v4 → v5: add archive_status default for existing sources.
+        // Old records had no capture attempt, so flag them explicitly.
+        archive_status: src.archive_status ?? 'not_attempted',
       })),
       sequence_association: seqAssoc,
       sequence_association_confidence:
         s.sequence_association_confidence ??
         (seqAssoc ? 'medium' : undefined),
       production_stamps: s.production_stamps ?? [],
-      // Remove the old field to keep records clean after migration.
+      // Fields removed across migrations — set to undefined so they don't
+      // accidentally survive a partial migration and confuse downstream code.
       sequence: undefined,
+      in_my_physical_collection: undefined,
     };
   });
-  if (version < 3) {
-    console.info(`Migrated archive from v${version} to v3`);
+  if (version < 5) {
+    console.info(`Migrated archive from v${version} to v5`);
   }
-  return { schema_version: 3, sheets };
+  return { schema_version: 5, sheets };
 }
 
 // Extracts unique values from an array of sheets for autocomplete / facet UIs.

@@ -42,8 +42,8 @@ For records with partial information, flip `Needs Research` to `Yes` and save �
 - Filename-based sheet number guessing for bulk imports.
 
 ### Finding things
-- URL-persistent filters — bookmarkable views like "all Girls of All Nations sheets owned physically."
-- Facet chips with counts: "Girls of All Nations (22)".
+- URL-persistent filters — bookmarkable views like "all sheets for sequence 4.2" or "everything in my research list for chapter 3."
+- Facet chips with counts: "Sequence 4.2 (3)".
 - Search across ID, title, characters, sequence, notes, tags, approvals. "m174" matches "M174-A".
 - Five sort modes: sheet number (numeric-correct), date on sheet, title, recently updated, recently added.
 - Grid view or list view (density toggle).
@@ -88,7 +88,7 @@ Character Model Department sheets (the M-numbered ones) are a different beast. T
 
 The schema splits these cleanly:
 
-- **`sequence_association`** — the narrative sequence this sheet's characters belong to, e.g. "Girls of All Nations." Usually inferred, not stamped. Carries a separate **`sequence_association_confidence`** field (high/medium/low/unverified) so you can distinguish "Kaufman 2012 p. 142 confirms this" from "I think it fits here but I haven't pinned it down."
+- **`sequence_association`** — the numbered narrative sequence this sheet's characters belong to, e.g., "1.5" or "4.2". Usually inferred, not stamped. Carries a separate **`sequence_association_confidence`** field (high/medium/low/unverified) so you can distinguish primary-source confirmation from a working hypothesis.
 - **`production_stamps`** — a structured array of stamps literally visible on the object. Each stamp has `prod_number` (usually "2003" for Pinocchio), `sequence_number` (e.g. "4.2"), `scene_number`, `location_on_sheet`, and free-text notes. This is where primary-source data goes.
 
 For your Character Model Department sheets (M19-A, M174-A, M231-A, etc.), you'll mostly use `sequence_association` with a confidence flag. For the Ubangi cel with drawings (M36-A) and any other drawings/cels you hold, check for actual stamps and record them in `production_stamps`.
@@ -201,7 +201,7 @@ Opens at `http://localhost:5173/pinocchio-archive/`.
 
 Autocomplete builds vocabulary as you go, but it's still worth settling canonical forms early. Recommended:
 
-- Sequence associations: "Girls of All Nations" (not "Girls of All Nations (deleted)"). If a sheet has an actual stamped sequence number, put that in `production_stamps.sequence_number` separately.
+- Sequence associations: use the numbered form, e.g., "1.5" or "4.2". If a sheet has an actual stamped sequence number, put that in `production_stamps.sequence_number` separately.
 - Sources: pick one of "Van Eaton Galleries" or "Van Eaton", not both
 - Departments: "Character Model Department" (already the default)
 - Tags: snake_case (e.g. `deleted_sequence`, `post_restructure`)

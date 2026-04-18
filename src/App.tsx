@@ -3,11 +3,13 @@ import type { ArchiveData, ModelSheet } from './types/schema';
 import {
   compareSheets,
   compareSheetsByCharacter,
+  compareSheetsBySequence,
   extractVocabulary,
   extractSourceVocabulary,
   getRecentDefaults,
   makeEmptySheet,
   migrateArchive,
+  parseSequenceNumber,
 } from './lib/sheets';
 import {
   commitBinaryFile,
@@ -18,12 +20,14 @@ import {
   verifyToken,
 } from './lib/github';
 import { useKeyboardShortcuts } from './lib/useKeyboardShortcuts';
+import { loadLists, addSheetsToList, createList } from './lib/lists';
 import { SheetCard } from './components/SheetCard';
 import { SheetListRow } from './components/SheetListRow';
 import { SheetDetail } from './components/SheetDetail';
 import { SheetEdit } from './components/SheetEdit';
 import { Settings } from './components/Settings';
 import { BulkImport } from './components/BulkImport';
+import { ManageLists } from './components/ManageLists';
 
 type SortMode =
   | 'number'
@@ -31,7 +35,8 @@ type SortMode =
   | 'title'
   | 'updated'
   | 'created'
-  | 'character';
+  | 'character'
+  | 'sequence';
 type ViewMode = 'grid' | 'list' | 'by_character';
 
 const BASE = import.meta.env.BASE_URL || '/';
@@ -43,7 +48,7 @@ interface FilterState {
   character: string | null;
   tag: string | null;
   needsResearch: boolean;
-  inCollection: boolean;
+  listId: string | null; // filter to a specific user list (local storage)
   sort: SortMode;
   view: ViewMode;
 }
@@ -56,7 +61,7 @@ function readFiltersFromUrl(): FilterState {
     character: params.get('char'),
     tag: params.get('tag'),
     needsResearch: params.get('research') === '1',
-    inCollection: params.get('owned') === '1',
+    listId: params.get('list'),
     sort: (params.get('sort') as SortMode) || 'number',
     view: (params.get('view') as ViewMode) || 'grid',
   };
@@ -69,7 +74,7 @@ function writeFiltersToUrl(f: FilterState) {
   if (f.character) params.set('char', f.character);
   if (f.tag) params.set('tag', f.tag);
   if (f.needsResearch) params.set('research', '1');
-  if (f.inCollection) params.set('owned', '1');
+  if (f.listId) params.set('list', f.listId);
   if (f.sort !== 'number') params.set('sort', f.sort);
   if (f.view !== 'grid') params.set('view', f.view);
   const qs = params.toString();
@@ -86,7 +91,26 @@ export default function App() {
   const [creatingNew, setCreatingNew] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const [showManageLists, setShowManageLists] = useState(false);
+  // Select mode toggles checkboxes on cards; in this mode clicking a card
+  // toggles selection rather than opening the detail view. Used for
+  // bulk "add to list" operations.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Bump this whenever user lists are mutated (from Manage Lists modal or
+  // from detail / card bookmark interactions) so dependent useMemos rebuild.
+  const [listsTick, setListsTick] = useState(0);
+  const bumpLists = useCallback(() => setListsTick((t) => t + 1), []);
   const [focusedIdx, setFocusedIdx] = useState(0);
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
   const [toast, setToast] = useState<string | null>(null);
 
   // Authentication state. `null` = verification pending (initial load).
@@ -145,7 +169,7 @@ export default function App() {
       .then((raw) => setData(migrateArchive(raw)))
       .catch((e) => {
         console.warn('Could not load sheets.json, starting empty:', e);
-        setData({ schema_version: 3, sheets: [] });
+        setData({ schema_version: 5, sheets: [] });
         setLoadError(e.message);
       });
   }, []);
@@ -160,8 +184,18 @@ export default function App() {
     if (filters.character)
       list = list.filter((s) => s.characters.includes(filters.character!));
     if (filters.tag) list = list.filter((s) => s.tags.includes(filters.tag!));
-    if (filters.inCollection)
-      list = list.filter((s) => s.in_my_physical_collection);
+    if (filters.listId) {
+      // Re-read the specific list from localStorage so filter is fresh.
+      const userLists = loadLists().lists;
+      const sel = userLists.find((l) => l.id === filters.listId);
+      if (sel) {
+        const ids = new Set(sel.sheet_ids);
+        list = list.filter((s) => ids.has(s.id));
+      } else {
+        // List was deleted underneath us — show nothing and let UI recover.
+        list = [];
+      }
+    }
     if (filters.needsResearch) list = list.filter((s) => s.needs_research);
     if (filters.search.trim()) {
       const q = filters.search.toLowerCase();
@@ -196,12 +230,15 @@ export default function App() {
       case 'created':
         list.sort((a, b) => b.created_at.localeCompare(a.created_at));
         break;
+      case 'sequence':
+        list.sort(compareSheetsBySequence);
+        break;
       case 'character':
         list.sort(compareSheetsByCharacter);
         break;
     }
     return list;
-  }, [data, filters]);
+  }, [data, filters, listsTick]);
 
   // For the "Group by character" view: each character gets a group, and
   // each sheet that lists that character appears in that group. A sheet with
@@ -235,6 +272,12 @@ export default function App() {
       }));
   }, [data, filtered]);
 
+  // User-local lists (from localStorage). Re-read whenever listsTick bumps.
+  const userLists = useMemo(() => {
+    return loadLists().lists;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listsTick]);
+
   const vocab = useMemo(() => {
     if (!data)
       return {
@@ -246,9 +289,21 @@ export default function App() {
         approvals: [],
         sourceNames: [],
       };
+    const seqVocab = extractVocabulary(data.sheets, 'sequence_association');
+    // Sort sequences by leading number so chips appear in natural order
+    // (1.5, 1.6, 4.2, 4.4) rather than by frequency or alphabetically.
+    seqVocab.sort((a, b) => {
+      const an = parseSequenceNumber(a.value);
+      const bn = parseSequenceNumber(b.value);
+      if (!an && !bn) return a.value.localeCompare(b.value);
+      if (!an) return 1;
+      if (!bn) return -1;
+      if (an[0] !== bn[0]) return an[0] - bn[0];
+      return an[1] - bn[1];
+    });
     return {
       characters: extractVocabulary(data.sheets, 'characters'),
-      sequences: extractVocabulary(data.sheets, 'sequence_association'),
+      sequences: seqVocab,
       departments: extractVocabulary(data.sheets, 'department'),
       artists: extractVocabulary(data.sheets, 'artist'),
       tags: extractVocabulary(data.sheets, 'tags'),
@@ -460,7 +515,6 @@ export default function App() {
       'date_on_sheet',
       'date_precision',
       'approvals',
-      'in_collection',
       'confidence',
       'needs_research',
       'rarity_market',
@@ -500,7 +554,6 @@ export default function App() {
         s.date_on_sheet || '',
         s.date_precision,
         s.approvals.join('; '),
-        s.in_my_physical_collection ? 'yes' : 'no',
         s.confidence,
         s.needs_research ? 'yes' : 'no',
         s.rarity.market,
@@ -582,6 +635,7 @@ export default function App() {
         if (selected) setSelectedId(null);
         else if (creatingNew) setCreatingNew(false);
         else if (showSettings) handleCloseSettings();
+        else if (showManageLists) setShowManageLists(false);
         else if (showBulk) setShowBulk(false);
       },
     },
@@ -606,7 +660,7 @@ export default function App() {
     filters.character ||
     filters.tag ||
     filters.needsResearch ||
-    filters.inCollection;
+    filters.listId;
 
   const clearFilters = () =>
     setFilters((f) => ({
@@ -616,7 +670,7 @@ export default function App() {
       character: null,
       tag: null,
       needsResearch: false,
-      inCollection: false,
+      listId: null,
     }));
 
   const recentDefaults = getRecentDefaults(data.sheets);
@@ -702,6 +756,7 @@ export default function App() {
           }
         >
           <option value="number">Sort: Sheet Number</option>
+          <option value="sequence">Sort: Sequence</option>
           <option value="date">Sort: Date on Sheet</option>
           <option value="title">Sort: Title</option>
           <option value="character">Sort: Character</option>
@@ -718,6 +773,24 @@ export default function App() {
           <option value="list">View: List</option>
           <option value="by_character">View: Group by Character</option>
         </select>
+        <button
+          onClick={() => {
+            if (selectMode) clearSelection();
+            setSelectMode((v) => !v);
+          }}
+          title="Toggle multi-select (for bulk list actions)"
+          style={
+            selectMode
+              ? {
+                  background: 'var(--ink)',
+                  color: 'var(--paper)',
+                  borderColor: 'var(--ink)',
+                }
+              : undefined
+          }
+        >
+          {selectMode ? 'Done selecting' : 'Select'}
+        </button>
         {isAuthenticated && (
           <>
             <button
@@ -739,25 +812,62 @@ export default function App() {
       </div>
 
       <div className="facet-bar">
-        <span className="facet-label">Toggles</span>
-        <button
-          className={`chip ${filters.inCollection ? 'active' : ''}`}
-          onClick={() =>
-            setFilters((f) => ({ ...f, inCollection: !f.inCollection }))
-          }
-        >
-          Owned only
-        </button>
         {isAuthenticated && (
-          <button
-            className={`chip ${filters.needsResearch ? 'active' : ''}`}
-            onClick={() =>
-              setFilters((f) => ({ ...f, needsResearch: !f.needsResearch }))
-            }
-          >
-            Needs research ({incompleteQueue.length})
-          </button>
+          <>
+            <span className="facet-label">Toggles</span>
+            <button
+              className={`chip ${filters.needsResearch ? 'active' : ''}`}
+              onClick={() =>
+                setFilters((f) => ({ ...f, needsResearch: !f.needsResearch }))
+              }
+            >
+              Needs research ({incompleteQueue.length})
+            </button>
+          </>
         )}
+
+        <span
+          className="facet-label"
+          style={{ marginLeft: isAuthenticated ? 12 : 0 }}
+        >
+          Lists
+        </span>
+        {userLists.length === 0 && (
+          <span
+            style={{
+              fontSize: 11,
+              color: 'var(--ink-faded)',
+              fontStyle: 'italic',
+            }}
+          >
+            None yet.
+          </span>
+        )}
+        {userLists.slice(0, 6).map((l) => (
+          <button
+            key={l.id}
+            className={`chip ${filters.listId === l.id ? 'active' : ''}`}
+            onClick={() =>
+              setFilters((f) => ({
+                ...f,
+                listId: f.listId === l.id ? null : l.id,
+              }))
+            }
+            title={`${l.sheet_ids.length} sheet${
+              l.sheet_ids.length === 1 ? '' : 's'
+            }`}
+          >
+            {l.name} ({l.sheet_ids.length})
+          </button>
+        ))}
+        <button
+          className="chip"
+          onClick={() => setShowManageLists(true)}
+          style={{ fontStyle: 'italic' }}
+          title="Create, rename, delete, export / import lists"
+        >
+          Manage…
+        </button>
 
         {vocab.sequences.length > 0 && (
           <>
@@ -822,6 +932,75 @@ export default function App() {
           </button>
         )}
       </div>
+
+      {selectMode && (
+        <div
+          style={{
+            padding: '8px 24px',
+            borderBottom: '1px solid var(--rule)',
+            background: 'var(--paper-deep)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            fontSize: 13,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'var(--mono)',
+              fontSize: 11,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              color: 'var(--ink-faded)',
+            }}
+          >
+            {selectedIds.size === 0
+              ? 'Click cards to select'
+              : `${selectedIds.size} selected`}
+          </span>
+          {selectedIds.size > 0 && (
+            <>
+              <button
+                className="btn-small"
+                onClick={() => {
+                  setSelectedIds(new Set(filtered.map((s) => s.id)));
+                }}
+                title="Select all currently filtered sheets"
+              >
+                Select all filtered ({filtered.length})
+              </button>
+              <button className="btn-small" onClick={clearSelection}>
+                Clear selection
+              </button>
+              <div style={{ flex: 1 }} />
+              <AddToListPicker
+                userLists={userLists}
+                count={selectedIds.size}
+                onChoose={(listIdOrNew) => {
+                  let listId = listIdOrNew;
+                  if (listIdOrNew === '__new__') {
+                    const name = prompt('Name for new list');
+                    if (!name || !name.trim()) return;
+                    listId = createList(name.trim()).id;
+                  }
+                  const added = addSheetsToList(
+                    listId,
+                    Array.from(selectedIds)
+                  );
+                  bumpLists();
+                  const list = loadLists().lists.find((l) => l.id === listId);
+                  flashToast(
+                    `Added ${added} sheet${added === 1 ? '' : 's'} to "${
+                      list?.name ?? 'list'
+                    }"`
+                  );
+                }}
+              />
+            </>
+          )}
+        </div>
+      )}
 
       {loadError && data.sheets.length === 0 && (
         <div
@@ -900,6 +1079,11 @@ export default function App() {
                     sheet={s}
                     imageBase={BASE}
                     onClick={() => setSelectedId(s.id)}
+                    userLists={userLists}
+                    onListsChanged={bumpLists}
+                    selectMode={selectMode}
+                    selected={selectedIds.has(s.id)}
+                    onSelectToggle={() => toggleSelect(s.id)}
                   />
                 ))}
               </div>
@@ -915,6 +1099,11 @@ export default function App() {
               imageBase={BASE}
               onClick={() => setSelectedId(s.id)}
               focused={i === focusedIdx}
+              userLists={userLists}
+              onListsChanged={bumpLists}
+              selectMode={selectMode}
+              selected={selectedIds.has(s.id)}
+              onSelectToggle={() => toggleSelect(s.id)}
             />
           ))}
         </div>
@@ -947,6 +1136,8 @@ export default function App() {
           imageBase={BASE}
           publicBaseUrl={publicBaseUrl}
           canEdit={!!isAuthenticated}
+          userLists={userLists}
+          onListsChanged={bumpLists}
           onClose={() => setSelectedId(null)}
           onEdit={() => setEditingId(selected.id)}
           onDelete={() => handleDelete(selected.id)}
@@ -980,6 +1171,13 @@ export default function App() {
           onSave={handleSave}
           onSaveAndNext={handleSaveAndNext}
           onCancel={() => setCreatingNew(false)}
+        />
+      )}
+
+      {showManageLists && (
+        <ManageLists
+          onClose={() => setShowManageLists(false)}
+          onChange={bumpLists}
         />
       )}
 
@@ -1034,5 +1232,41 @@ export default function App() {
         n new · b bulk · / search · j/k move · ↵ open · e edit · esc close
       </div>
     </div>
+  );
+}
+
+// Tiny inline component used by the select-mode action bar. Renders a
+// dropdown of user lists + a "+ New list" option. Kept in App.tsx since
+// it's used only here.
+function AddToListPicker({
+  userLists,
+  count,
+  onChoose,
+}: {
+  userLists: { id: string; name: string; sheet_ids: string[] }[];
+  count: number;
+  onChoose: (listId: string) => void;
+}) {
+  const [value, setValue] = useState('');
+  return (
+    <select
+      value={value}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (!v) return;
+        onChoose(v);
+        setValue(''); // reset so user can repeat
+      }}
+      style={{ fontSize: 12, padding: '4px 8px' }}
+      aria-label="Add selected sheets to a list"
+    >
+      <option value="">Add {count} to list…</option>
+      {userLists.map((l) => (
+        <option key={l.id} value={l.id}>
+          {l.name} ({l.sheet_ids.length})
+        </option>
+      ))}
+      <option value="__new__">+ New list…</option>
+    </select>
   );
 }

@@ -5,12 +5,20 @@ import {
   googleLensUrl,
   tineyeUrl,
 } from '../lib/image';
+import { formatSequenceParts } from '../lib/sheets';
+import {
+  toggleSheetInList,
+  createList,
+  type UserList,
+} from '../lib/lists';
 
 interface Props {
   sheet: ModelSheet;
   imageBase: string;
   publicBaseUrl: string;
   canEdit: boolean; // hides Edit/Delete when false
+  userLists: UserList[];
+  onListsChanged: () => void;
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -38,6 +46,8 @@ export function SheetDetail({
   imageBase,
   publicBaseUrl,
   canEdit,
+  userLists,
+  onListsChanged,
   onClose,
   onEdit,
   onDelete,
@@ -196,35 +206,61 @@ export function SheetDetail({
                 {sheet.sequence_association && (
                   <Field
                     label="Sequence"
-                    value={
-                      <>
-                        {sheet.sequence_association}
-                        {sheet.sequence_association_confidence && (
-                          <span
-                            style={{
-                              fontFamily: 'var(--mono)',
-                              fontSize: 9,
-                              letterSpacing: '0.1em',
-                              textTransform: 'uppercase',
-                              color:
-                                sheet.sequence_association_confidence ===
-                                'high'
-                                  ? 'var(--success)'
-                                  : sheet.sequence_association_confidence ===
-                                    'low'
-                                  ? 'var(--ink-faded)'
-                                  : 'var(--warn)',
-                              marginLeft: 8,
-                              padding: '1px 6px',
-                              border: `1px solid currentColor`,
-                            }}
-                            title="Scholarly confidence in this sequence identification"
-                          >
-                            {sheet.sequence_association_confidence}
-                          </span>
-                        )}
-                      </>
-                    }
+                    value={(() => {
+                      const parts = formatSequenceParts(
+                        sheet.sequence_association
+                      );
+                      return (
+                        <>
+                          {parts.number && (
+                            <span
+                              style={{
+                                fontFamily: 'var(--mono)',
+                                letterSpacing: '0.02em',
+                              }}
+                            >
+                              [SQ {parts.number}]
+                            </span>
+                          )}
+                          {parts.rest && (
+                            <span
+                              style={{ fontStyle: 'italic', marginLeft: 6 }}
+                            >
+                              ({parts.rest})
+                            </span>
+                          )}
+                          {!parts.number && !parts.rest && (
+                            <em style={{ color: 'var(--ink-faded)' }}>
+                              empty
+                            </em>
+                          )}
+                          {sheet.sequence_association_confidence && (
+                            <span
+                              style={{
+                                fontFamily: 'var(--mono)',
+                                fontSize: 9,
+                                letterSpacing: '0.1em',
+                                textTransform: 'uppercase',
+                                color:
+                                  sheet.sequence_association_confidence ===
+                                  'high'
+                                    ? 'var(--success)'
+                                    : sheet.sequence_association_confidence ===
+                                      'low'
+                                    ? 'var(--ink-faded)'
+                                    : 'var(--warn)',
+                                marginLeft: 8,
+                                padding: '1px 6px',
+                                border: `1px solid currentColor`,
+                              }}
+                              title="Scholarly confidence in this sequence identification"
+                            >
+                              {sheet.sequence_association_confidence}
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
                   />
                 )}
                 {sheet.department && (
@@ -325,12 +361,108 @@ export function SheetDetail({
             )}
 
             <div className="modal-section">
+              <div
+                className="modal-section-label"
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 8,
+                  justifyContent: 'space-between',
+                }}
+              >
+                <span>In your lists</span>
+                <span
+                  style={{
+                    fontFamily: 'var(--serif)',
+                    fontStyle: 'italic',
+                    fontSize: 11,
+                    textTransform: 'none',
+                    letterSpacing: 0,
+                    color: 'var(--ink-faded)',
+                  }}
+                >
+                  stored in this browser only
+                </span>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 4,
+                  alignItems: 'center',
+                }}
+              >
+                {userLists.length === 0 ? (
+                  <>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontStyle: 'italic',
+                        color: 'var(--ink-faded)',
+                      }}
+                    >
+                      No lists yet.
+                    </span>
+                    <button
+                      className="chip"
+                      style={{ fontSize: 11 }}
+                      onClick={() => {
+                        const name = prompt(
+                          'Name for your first list (e.g., "In my collection", "For thesis")'
+                        );
+                        if (!name || !name.trim()) return;
+                        const l = createList(name.trim());
+                        toggleSheetInList(l.id, sheet.id);
+                        onListsChanged();
+                      }}
+                    >
+                      + Create list and add
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {userLists.map((l) => {
+                      const inList = l.sheet_ids.includes(sheet.id);
+                      return (
+                        <button
+                          key={l.id}
+                          className={`chip ${inList ? 'active' : ''}`}
+                          onClick={() => {
+                            toggleSheetInList(l.id, sheet.id);
+                            onListsChanged();
+                          }}
+                          title={
+                            inList
+                              ? `Remove from "${l.name}"`
+                              : `Add to "${l.name}"`
+                          }
+                        >
+                          {inList ? '✓ ' : '+ '}
+                          {l.name}
+                        </button>
+                      );
+                    })}
+                    <button
+                      className="chip"
+                      style={{ fontSize: 11, fontStyle: 'italic' }}
+                      onClick={() => {
+                        const name = prompt('Name for new list');
+                        if (!name || !name.trim()) return;
+                        const l = createList(name.trim());
+                        toggleSheetInList(l.id, sheet.id);
+                        onListsChanged();
+                      }}
+                    >
+                      + New list
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-section">
               <div className="modal-section-label">Provenance</div>
               <dl>
-                <Field
-                  label="In my collection"
-                  value={sheet.in_my_physical_collection ? 'Yes' : 'No'}
-                />
                 <Field label="Confidence" value={sheet.confidence} />
               </dl>
               {sheet.image_sources.length > 0 && (
@@ -359,7 +491,37 @@ export function SheetDetail({
                     {sheet.image_sources.map((s, i) => (
                       <li key={i}>
                         <strong>{s.source_name || s.source_type}</strong>
-                        {s.url && (
+                        {s.archive_status === 'verified' && s.archive_url ? (
+                          <>
+                            {' — '}
+                            <a
+                              href={s.archive_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ color: 'var(--accent)' }}
+                              title="Wayback Machine snapshot (preserved)"
+                            >
+                              Wayback ↗
+                            </a>
+                            {s.url && (
+                              <>
+                                {' · '}
+                                <a
+                                  href={s.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{
+                                    color: 'var(--ink-faded)',
+                                    fontSize: 11,
+                                  }}
+                                  title="Original source (may have changed or disappeared)"
+                                >
+                                  original
+                                </a>
+                              </>
+                            )}
+                          </>
+                        ) : s.url ? (
                           <>
                             {' — '}
                             <a
@@ -370,8 +532,49 @@ export function SheetDetail({
                             >
                               link
                             </a>
+                            {s.archive_status === 'pending' && (
+                              <span
+                                style={{
+                                  fontFamily: 'var(--mono)',
+                                  fontSize: 10,
+                                  color: 'var(--warn)',
+                                  marginLeft: 6,
+                                  letterSpacing: '0.05em',
+                                }}
+                                title="Wayback capture submitted; verification pending"
+                              >
+                                · archiving…
+                              </span>
+                            )}
+                            {s.archive_status === 'failed' && (
+                              <span
+                                style={{
+                                  fontFamily: 'var(--mono)',
+                                  fontSize: 10,
+                                  color: 'var(--danger)',
+                                  marginLeft: 6,
+                                  letterSpacing: '0.05em',
+                                }}
+                                title="Wayback capture did not resolve — source may not be archivable"
+                              >
+                                · not archived
+                              </span>
+                            )}
+                            {s.archive_status === 'not_attempted' && (
+                              <span
+                                style={{
+                                  fontFamily: 'var(--mono)',
+                                  fontSize: 10,
+                                  color: 'var(--ink-faded)',
+                                  marginLeft: 6,
+                                  letterSpacing: '0.05em',
+                                }}
+                              >
+                                · not captured
+                              </span>
+                            )}
                           </>
-                        )}
+                        ) : null}
                         {s.retrieved && (
                           <span
                             style={{

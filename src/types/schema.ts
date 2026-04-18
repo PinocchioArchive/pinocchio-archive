@@ -28,6 +28,17 @@ export type ImageSourceType =
   | 'other'
   | 'unknown';
 
+// Status of the Wayback Machine capture for this source's original URL.
+// - 'not_attempted': no capture has been tried yet
+// - 'pending': capture fired but verification hasn't completed (typical 30-60s window)
+// - 'verified': HEAD request confirms the snapshot resolves
+// - 'failed': verification returned a non-OK response (often robots.txt blocked)
+export type ArchiveStatus =
+  | 'not_attempted'
+  | 'pending'
+  | 'verified'
+  | 'failed';
+
 export interface ImageSource {
   url?: string;
   source_type: ImageSourceType;
@@ -35,6 +46,20 @@ export interface ImageSource {
   retrieved?: string;
   watermark?: string;
   notes?: string;
+
+  // Wayback Machine preservation data. `archive_url` is the expected
+  // Wayback URL (a deterministic redirect to the latest-available snapshot
+  // of `url`). It's populated optimistically on capture; the `archive_status`
+  // field reflects whether verification has actually confirmed the snapshot.
+  archive_url?: string;
+  archive_captured_at?: string; // ISO timestamp of capture request
+  archive_status?: ArchiveStatus;
+
+  // When the URL is pasted and auto-populated via domain inference, these
+  // flags mark which fields were auto-filled. UI shows a "best guess" badge
+  // and lets the user confirm (clearing the flag) or edit (implicit confirm).
+  source_name_inferred?: boolean;
+  source_type_inferred?: boolean;
 }
 
 export interface PublishedReference {
@@ -74,10 +99,9 @@ export interface ModelSheet {
 
   title: string;
   characters: string[];
-  // Which narrative sequence the characters on this sheet are associated with.
-  // This is usually a research inference (e.g., "Girls of All Nations"), not
-  // something stamped on the sheet itself. Character Model Department sheets
-  // typically predate per-scene production numbering.
+  // The numbered narrative sequence this sheet's characters belong to,
+  // e.g., "1.5" or "4.2". Usually inferred, not stamped, on Character
+  // Model Department sheets — they predate per-scene production numbering.
   sequence_association?: string;
   // Confidence in the sequence_association — since this is usually inferred.
   sequence_association_confidence?: Confidence;
@@ -97,7 +121,6 @@ export interface ModelSheet {
   image_height?: number;
   image_sources: ImageSource[];
 
-  in_my_physical_collection: boolean;
   published_references: PublishedReference[];
   web_occurrences: WebOccurrenceReading[];
   rarity: {
@@ -128,6 +151,6 @@ export interface ExtractionAudit {
 }
 
 export interface ArchiveData {
-  schema_version: 3;
+  schema_version: 5;
   sheets: ModelSheet[];
 }
