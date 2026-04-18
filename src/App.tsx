@@ -29,6 +29,7 @@ import { SheetEdit } from './components/SheetEdit';
 import { Settings } from './components/Settings';
 import { BulkImport } from './components/BulkImport';
 import { ManageLists } from './components/ManageLists';
+import { useDialog } from './components/Dialog';
 
 type SortMode =
   | 'number'
@@ -93,6 +94,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [showManageLists, setShowManageLists] = useState(false);
+  const { promptDialog, confirmDialog } = useDialog();
   // Select mode toggles checkboxes on cards; in this mode clicking a card
   // toggles selection rather than opening the detail view. Used for
   // bulk "add to list" operations.
@@ -559,12 +561,14 @@ export default function App() {
 
   const handleDelete = async (id: string) => {
     if (!data) return;
-    if (
-      !confirm(
-        `Delete record ${id}? The image file will remain in the repo.`
-      )
-    )
-      return;
+    const ok = await confirmDialog({
+      title: `Delete record ${id}?`,
+      message:
+        'The image file will remain in the repo, but the record itself will be removed. This cannot be undone from within the app.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     const nextData: ArchiveData = {
       ...data,
       sheets: data.sheets.filter((s) => s.id !== id),
@@ -1100,12 +1104,18 @@ export default function App() {
               <AddToListPicker
                 userLists={userLists}
                 count={selectedIds.size}
-                onChoose={(listIdOrNew) => {
+                onChoose={async (listIdOrNew) => {
                   let listId = listIdOrNew;
                   if (listIdOrNew === '__new__') {
-                    const name = prompt('Name for new list');
-                    if (!name || !name.trim()) return;
-                    listId = createList(name.trim()).id;
+                    const name = await promptDialog({
+                      title: 'New list',
+                      message: `This list will be created and ${selectedIds.size} sheet${
+                        selectedIds.size === 1 ? '' : 's'
+                      } will be added to it.`,
+                      placeholder: 'List name',
+                    });
+                    if (!name) return;
+                    listId = createList(name).id;
                   }
                   const added = addSheetsToList(
                     listId,

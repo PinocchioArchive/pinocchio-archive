@@ -3,6 +3,7 @@ import type { ModelSheet } from '../types/schema';
 import { resolutionTier } from '../lib/image';
 import { formatSequenceParts } from '../lib/sheets';
 import { toggleSheetInList, createList, type UserList } from '../lib/lists';
+import { useDialog } from './Dialog';
 
 interface Props {
   sheet: ModelSheet;
@@ -29,6 +30,7 @@ export function SheetCard({
 }: Props) {
   const imageSrc = sheet.image_file ? `${imageBase}${sheet.image_file}` : '';
   const tier = resolutionTier(sheet.image_width, sheet.image_height);
+  const { promptDialog } = useDialog();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -199,10 +201,14 @@ export function SheetCard({
             })}
             <button
               type="button"
-              onClick={() => {
-                const name = prompt('Name for new list');
-                if (!name || !name.trim()) return;
-                const l = createList(name.trim());
+              onClick={async () => {
+                const name = await promptDialog({
+                  title: 'New list',
+                  message: 'Create a new list and add this sheet to it.',
+                  placeholder: 'List name',
+                });
+                if (!name) return;
+                const l = createList(name);
                 toggleSheetInList(l.id, sheet.id);
                 onListsChanged();
                 setMenuOpen(false);

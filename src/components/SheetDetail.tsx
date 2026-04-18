@@ -11,6 +11,7 @@ import {
   createList,
   type UserList,
 } from '../lib/lists';
+import { useDialog } from './Dialog';
 
 interface Props {
   sheet: ModelSheet;
@@ -60,6 +61,7 @@ export function SheetDetail({
   const sortedOccurrences = [...sheet.web_occurrences].sort((a, b) =>
     b.checked_on.localeCompare(a.checked_on)
   );
+  const { promptDialog } = useDialog();
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -394,12 +396,15 @@ export function SheetDetail({
                     <button
                       className="chip"
                       style={{ fontSize: 11 }}
-                      onClick={() => {
-                        const name = prompt(
-                          'Name for your first list (e.g., "In my collection", "For thesis")'
-                        );
-                        if (!name || !name.trim()) return;
-                        const l = createList(name.trim());
+                      onClick={async () => {
+                        const name = await promptDialog({
+                          title: 'Create your first list',
+                          message:
+                            'e.g. "In my collection", "For thesis", "Wishlist"',
+                          placeholder: 'List name',
+                        });
+                        if (!name) return;
+                        const l = createList(name);
                         toggleSheetInList(l.id, sheet.id);
                         onListsChanged();
                       }}
@@ -433,10 +438,13 @@ export function SheetDetail({
                     <button
                       className="chip"
                       style={{ fontSize: 11, fontStyle: 'italic' }}
-                      onClick={() => {
-                        const name = prompt('Name for new list');
-                        if (!name || !name.trim()) return;
-                        const l = createList(name.trim());
+                      onClick={async () => {
+                        const name = await promptDialog({
+                          title: 'New list',
+                          placeholder: 'List name',
+                        });
+                        if (!name) return;
+                        const l = createList(name);
                         toggleSheetInList(l.id, sheet.id);
                         onListsChanged();
                       }}
@@ -637,27 +645,45 @@ export function SheetDetail({
               )}
             </div>
 
-            <div className="modal-section">
-              <div className="modal-section-label">Rarity</div>
-              <div className="rarity-grid">
-                <div className="rarity-cell">
-                  <div className="rarity-cell-label">Market</div>
-                  <div className="rarity-cell-value">{sheet.rarity.market}</div>
-                </div>
-                <div className="rarity-cell">
-                  <div className="rarity-cell-label">Institutional</div>
-                  <div className="rarity-cell-value">
-                    {sheet.rarity.institutional}
+            {(() => {
+              // Hide rarity cells that haven't been explicitly set.
+              // 'unknown' is the default/unset state — only show cells the
+              // user has actually chosen a level for. Hide the section
+              // entirely if all three dimensions are unset.
+              const rarityEntries: {
+                label: string;
+                value: string;
+              }[] = [];
+              if (sheet.rarity.market !== 'unknown')
+                rarityEntries.push({
+                  label: 'Market',
+                  value: sheet.rarity.market,
+                });
+              if (sheet.rarity.institutional !== 'unknown')
+                rarityEntries.push({
+                  label: 'Institutional',
+                  value: sheet.rarity.institutional,
+                });
+              if (sheet.rarity.iconographic !== 'unknown')
+                rarityEntries.push({
+                  label: 'Iconographic',
+                  value: sheet.rarity.iconographic,
+                });
+              if (rarityEntries.length === 0) return null;
+              return (
+                <div className="modal-section">
+                  <div className="modal-section-label">Rarity</div>
+                  <div className="rarity-grid">
+                    {rarityEntries.map((e) => (
+                      <div key={e.label} className="rarity-cell">
+                        <div className="rarity-cell-label">{e.label}</div>
+                        <div className="rarity-cell-value">{e.value}</div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="rarity-cell">
-                  <div className="rarity-cell-label">Iconographic</div>
-                  <div className="rarity-cell-value">
-                    {sheet.rarity.iconographic}
-                  </div>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {sortedOccurrences.length > 0 && (
               <div className="modal-section">
