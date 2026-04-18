@@ -1401,6 +1401,23 @@ function RepeatableImageSources({
     }
   };
 
+  // Recheck hits only the Availability API — no new Save Page Now request.
+  // Useful when you suspect the API is lagging (Wayback says "unavailable"
+  // but the snapshot actually exists, which happens often enough to matter).
+  const recheck = async (i: number) => {
+    const item = items[i];
+    if (!item.url) return;
+    try {
+      const result = await verifyWayback(item.url);
+      setItem(i, {
+        archive_status: result.status,
+        archive_url: result.archive_url || item.archive_url,
+      });
+    } catch (e) {
+      console.warn('Recheck failed:', e);
+    }
+  };
+
   return (
     <div className="form-repeatable">
       {/* Quick add from URL */}
@@ -1608,18 +1625,28 @@ function RepeatableImageSources({
               }}
             >
               <ArchiveStatusPill status={item.archive_status} />
-              {item.archive_url &&
-                (item.archive_status === 'verified' ||
-                  item.archive_status === 'pending') && (
-                  <a
-                    href={item.archive_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ color: 'var(--accent)' }}
-                  >
-                    View on Wayback ↗
-                  </a>
-                )}
+              {item.archive_url && (
+                <a
+                  href={item.archive_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: 'var(--accent)',
+                    opacity: item.archive_status === 'failed' ? 0.7 : 1,
+                    textDecoration:
+                      item.archive_status === 'failed'
+                        ? 'underline dotted'
+                        : 'underline',
+                  }}
+                  title={
+                    item.archive_status === 'failed'
+                      ? "Availability API reports no snapshot, but the API lags sometimes — click to check manually"
+                      : 'View Wayback snapshot'
+                  }
+                >
+                  View on Wayback ↗
+                </a>
+              )}
               {(item.archive_status === 'not_attempted' ||
                 item.archive_status === 'failed') && (
                 <button
@@ -1629,13 +1656,25 @@ function RepeatableImageSources({
                   style={{ fontSize: 10, padding: '2px 6px' }}
                   title={
                     item.archive_status === 'failed'
-                      ? 'Retry Wayback capture'
-                      : 'Capture this URL to the Wayback Machine'
+                      ? 'Fire a fresh Wayback Save Page Now request (takes ~30s)'
+                      : 'Submit this URL to the Wayback Machine'
                   }
                 >
                   {item.archive_status === 'failed'
                     ? 'Retry capture'
                     : 'Capture to Wayback'}
+                </button>
+              )}
+              {(item.archive_status === 'failed' ||
+                item.archive_status === 'pending') && (
+                <button
+                  type="button"
+                  className="btn-small"
+                  onClick={() => void recheck(i)}
+                  style={{ fontSize: 10, padding: '2px 6px' }}
+                  title="Re-query the Wayback Availability API without firing a new capture. Useful when the API is lagging and you suspect the snapshot already exists."
+                >
+                  Recheck
                 </button>
               )}
               {item.archive_captured_at && (

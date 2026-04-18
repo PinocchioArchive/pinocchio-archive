@@ -243,7 +243,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 
 .card {
   background: var(--paper);
-  border: 1px solid var(--rule);
+  border: 1px solid rgba(201, 190, 166, 0.5);
   display: flex;
   flex-direction: column;
   cursor: pointer;
@@ -274,7 +274,6 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-bottom: var(--rule-thin);
   position: relative;
 }
 
@@ -731,60 +730,72 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 
 .modal-id {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: var(--accent);
-  margin-bottom: 8px;
+  background: rgba(139, 46, 31, 0.08);
+  padding: 3px 10px;
+  border-radius: 999px;
+  display: inline-block;
+  margin-bottom: 10px;
 }
 
 .modal-title {
   font-family: var(--serif);
-  font-weight: 500;
-  font-size: 28px;
-  line-height: 1.15;
-  letter-spacing: -0.01em;
+  font-weight: 400;
+  font-style: italic;
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
   margin: 0;
   color: var(--ink);
 }
 
 .modal-section-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--ink-faded);
-  margin-bottom: 6px;
+  font-family: var(--serif);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
 }
 
 .modal-section {
-  padding-bottom: 16px;
-  border-bottom: var(--rule-thin);
+  padding-bottom: 18px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(201, 190, 166, 0.4);
 }
 
 .modal-section:last-of-type { border-bottom: none; }
 
 .modal-field {
   display: grid;
-  grid-template-columns: 140px 1fr;
-  gap: 12px;
-  margin-bottom: 6px;
+  grid-template-columns: 130px 1fr;
+  gap: 14px;
+  margin-bottom: 8px;
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.45;
+  align-items: baseline;
 }
 
 .modal-field dt {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-family: var(--serif);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--ink-faded);
-  padding-top: 3px;
+  padding-top: 2px;
+  font-style: italic;
 }
 
 .modal-field dd {
   margin: 0;
   color: var(--ink);
+  font-family: var(--serif);
+  font-size: 14px;
 }
 
 .modal-field-wide { grid-template-columns: 1fr; }
@@ -820,16 +831,18 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 }
 
 .rarity-cell {
-  border: 1px solid var(--rule);
-  padding: 10px 12px;
+  border: 1px solid rgba(201, 190, 166, 0.5);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
   background: var(--paper);
 }
 
 .rarity-cell-label {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-family: var(--serif);
+  font-size: 11px;
+  font-style: italic;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--ink-faded);
 }
 
@@ -837,7 +850,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   font-family: var(--serif);
   font-style: italic;
   font-size: 15px;
-  margin-top: 2px;
+  margin-top: 4px;
   color: var(--ink);
 }
 
@@ -845,7 +858,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   display: flex;
   gap: 8px;
   padding-top: 16px;
-  border-top: var(--rule-thick);
+  border-top: 1px solid rgba(201, 190, 166, 0.5);
   margin-top: 8px;
   flex-wrap: wrap;
   align-items: center;

@@ -164,16 +164,17 @@ export function SheetDetail({
                 )}
               </h1>
               {sheet.needs_research && (
-                <div style={{ marginTop: 6 }}>
+                <div style={{ marginTop: 10 }}>
                   <span
                     style={{
-                      background: 'var(--warn)',
-                      color: 'var(--paper)',
-                      padding: '3px 8px',
+                      background: 'rgba(168, 122, 58, 0.15)',
+                      color: 'var(--warn)',
+                      padding: '3px 10px',
                       fontFamily: 'var(--mono)',
                       fontSize: 10,
                       letterSpacing: '0.1em',
                       textTransform: 'uppercase',
+                      borderRadius: 999,
                     }}
                   >
                     Needs Research
@@ -475,90 +476,95 @@ export function SheetDetail({
                     {sheet.image_sources.map((s, i) => (
                       <li key={i}>
                         <strong>{s.source_name || s.source_type}</strong>
-                        {s.archive_status === 'verified' && s.archive_url ? (
+                        {(s.archive_url || s.url) && ' — '}
+                        {s.archive_url && (
                           <>
-                            {' — '}
                             <a
                               href={s.archive_url}
                               target="_blank"
                               rel="noreferrer"
-                              style={{ color: 'var(--accent)' }}
-                              title="Wayback Machine snapshot (preserved)"
+                              style={{
+                                color: 'var(--accent)',
+                                // Failed status = de-emphasize but still show the link.
+                                // The API may be wrong about availability; let the user
+                                // verify by clicking through.
+                                opacity:
+                                  s.archive_status === 'failed' ? 0.75 : 1,
+                                textDecoration:
+                                  s.archive_status === 'failed'
+                                    ? 'underline dotted'
+                                    : 'underline',
+                              }}
+                              title={
+                                s.archive_status === 'verified'
+                                  ? 'Wayback Machine snapshot — verification confirms it resolves'
+                                  : s.archive_status === 'pending'
+                                  ? 'Wayback capture submitted; verification still pending. Click to check manually.'
+                                  : s.archive_status === 'failed'
+                                  ? 'Availability API reports no snapshot, but try clicking — the API is sometimes wrong. Recheck or retry capture in edit mode.'
+                                  : 'Wayback Machine snapshot'
+                              }
                             >
                               Wayback ↗
                             </a>
-                            {s.url && (
-                              <>
-                                {' · '}
-                                <a
-                                  href={s.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  style={{
-                                    color: 'var(--ink-faded)',
-                                    fontSize: 11,
-                                  }}
-                                  title="Original source (may have changed or disappeared)"
-                                >
-                                  original
-                                </a>
-                              </>
-                            )}
+                            {/* Trust indicator — small icon next to the link */}
+                            <span
+                              style={{
+                                fontFamily: 'var(--mono)',
+                                fontSize: 10,
+                                marginLeft: 4,
+                                color:
+                                  s.archive_status === 'verified'
+                                    ? 'var(--success)'
+                                    : s.archive_status === 'failed'
+                                    ? 'var(--danger)'
+                                    : s.archive_status === 'pending'
+                                    ? 'var(--warn)'
+                                    : 'var(--ink-faded)',
+                              }}
+                              title={
+                                s.archive_status === 'verified'
+                                  ? 'Verified'
+                                  : s.archive_status === 'pending'
+                                  ? 'Pending'
+                                  : s.archive_status === 'failed'
+                                  ? 'API reports unavailable (may be wrong)'
+                                  : 'Not verified'
+                              }
+                            >
+                              {s.archive_status === 'verified'
+                                ? '✓'
+                                : s.archive_status === 'failed'
+                                ? '?'
+                                : s.archive_status === 'pending'
+                                ? '…'
+                                : ''}
+                            </span>
                           </>
-                        ) : s.url ? (
+                        )}
+                        {s.url && (
                           <>
-                            {' — '}
+                            {s.archive_url ? ' · ' : ''}
                             <a
                               href={s.url}
                               target="_blank"
                               rel="noreferrer"
-                              style={{ color: 'var(--accent)' }}
+                              style={{
+                                color: s.archive_url
+                                  ? 'var(--ink-faded)'
+                                  : 'var(--accent)',
+                                fontSize: s.archive_url ? 11 : 'inherit',
+                              }}
+                              title={
+                                s.archive_url
+                                  ? 'Original source (may have changed or disappeared)'
+                                  : 'Original source'
+                              }
                             >
-                              link
+                              {s.archive_url ? 'original' : 'link'}
                             </a>
-                            {s.archive_status === 'pending' && (
-                              <span
-                                style={{
-                                  fontFamily: 'var(--mono)',
-                                  fontSize: 10,
-                                  color: 'var(--warn)',
-                                  marginLeft: 6,
-                                  letterSpacing: '0.05em',
-                                }}
-                                title="Wayback capture submitted; verification pending"
-                              >
-                                · archiving…
-                              </span>
-                            )}
-                            {s.archive_status === 'failed' && (
-                              <span
-                                style={{
-                                  fontFamily: 'var(--mono)',
-                                  fontSize: 10,
-                                  color: 'var(--danger)',
-                                  marginLeft: 6,
-                                  letterSpacing: '0.05em',
-                                }}
-                                title="Wayback capture did not resolve — source may not be archivable"
-                              >
-                                · not archived
-                              </span>
-                            )}
-                            {s.archive_status === 'not_attempted' && (
-                              <span
-                                style={{
-                                  fontFamily: 'var(--mono)',
-                                  fontSize: 10,
-                                  color: 'var(--ink-faded)',
-                                  marginLeft: 6,
-                                  letterSpacing: '0.05em',
-                                }}
-                              >
-                                · not captured
-                              </span>
-                            )}
                           </>
-                        ) : null}
+                        )}
                         {s.retrieved && (
                           <span
                             style={{
