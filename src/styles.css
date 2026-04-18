@@ -474,9 +474,9 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   background: rgba(26, 23, 19, 0.75);
   z-index: 100;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 24px 20px;
   overflow-y: auto;
 }
 
@@ -484,8 +484,32 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   background: var(--paper);
   max-width: 1100px;
   width: 100%;
+  max-height: calc(100vh - 48px); /* fit within viewport, leaving backdrop room */
   border: var(--rule-thick);
   position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* clip the rounded corners; inner body scrolls */
+}
+
+/* Modal body becomes a flex row; image column stays fixed, form column
+   scrolls internally so Close/Save are always visible at modal edges. */
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0; /* allow children to shrink below content width */
+  overflow: hidden;
+}
+
+/* The right (form) column inside the body scrolls when content exceeds
+   the available height. Left (image) column stays put. */
+.modal-meta {
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.modal-image {
+  overflow-y: auto;
+  max-height: 100%;
 }
 
 /* Presentation-board masthead — sits at the top of the edit modal.
@@ -772,12 +796,13 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 }
 
 .tag {
-  padding: 2px 8px;
-  background: var(--paper-deep);
-  border: 1px solid var(--rule);
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.05em;
+  padding: 2px 10px;
+  background: rgba(107, 93, 79, 0.1);
+  border: none;
+  border-radius: 999px;
+  font-family: var(--serif);
+  font-size: 12px;
+  letter-spacing: 0;
   color: var(--ink-soft);
 }
 

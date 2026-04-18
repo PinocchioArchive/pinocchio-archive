@@ -713,7 +713,7 @@ export function SheetDetail({
                 <div className="modal-section-label">Tags</div>
                 <div className="tag-list">
                   {sheet.tags.map((t) => (
-                    <span key={t} className="tag tag-accent">
+                    <span key={t} className="tag">
                       {t}
                     </span>
                   ))}
