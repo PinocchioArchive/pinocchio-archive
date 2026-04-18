@@ -691,6 +691,25 @@ export function SheetEdit({
               </div>
 
               <div className="form-field">
+                <label className="form-label">
+                  In My Physical Collection
+                </label>
+                <select
+                  className="form-select"
+                  value={draft.in_my_physical_collection ? 'yes' : 'no'}
+                  onChange={(e) =>
+                    update(
+                      'in_my_physical_collection',
+                      e.target.value === 'yes'
+                    )
+                  }
+                >
+                  <option value="no">No — reference image only</option>
+                  <option value="yes">Yes — physical sheet owned</option>
+                </select>
+              </div>
+
+              <div className="form-field">
                 <label className="form-label">Confidence</label>
                 <select
                   className="form-select"

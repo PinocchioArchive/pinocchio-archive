@@ -97,6 +97,7 @@ export interface ModelSheet {
   image_height?: number;
   image_sources: ImageSource[];
 
+  in_my_physical_collection: boolean;
   published_references: PublishedReference[];
   web_occurrences: WebOccurrenceReading[];
   rarity: {
@@ -127,6 +128,6 @@ export interface ExtractionAudit {
 }
 
 export interface ArchiveData {
-  schema_version: 4;
+  schema_version: 3;
   sheets: ModelSheet[];
 }
