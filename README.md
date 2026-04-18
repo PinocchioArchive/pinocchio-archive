@@ -4,18 +4,8 @@ A scholarly finding aid for Disney *Pinocchio* (1940) Character Model Department
 
 ## What it does
 
-Browse, search, filter, edit, and add model sheet records. Track scholarly provenance — where you got each image, who published it, what watermarks or auction stamps are visible, how often it turns up in reverse-image searches over time.
+Browse, search, filter, edit, and add model sheet records. Track scholarly provenance — where the image came from, what watermarks or auction stamps are visible, how often it turns up in reverse-image searches over time.
 
-## Workflow for bulk entry
-
-The tool is designed around the realistic workflow of processing hundreds of sheets you've collected from around the web:
-
-1. **Bulk import**: click `⬒ Bulk`, drop 20–50 image files onto the drop zone. Sheet numbers are auto-guessed from filenames. Each image becomes a stub record flagged *Needs Research*.
-2. **Process the queue**: click `Needs research (N)` chip, then click any card. The edit form opens with full metadata fields.
-3. **Save & Next**: fill in what you know. Press `Cmd/Ctrl+Enter` (or click the red "Save & Next →" button) to save and jump to the next record in the research queue. The queue goes most-recently-added first.
-4. **Run out**: you get a "all caught up" toast when the research queue empties.
-
-For records with partial information, flip `Needs Research` to `Yes` and save — the record goes back on the queue for later.
 
 ## Keyboard shortcuts
 
