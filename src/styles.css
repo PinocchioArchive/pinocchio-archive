@@ -13,6 +13,14 @@
   --warn: #a87a3a;
   --error: #8b2e1f;
 
+  /* Deep navy for the "presentation board" masthead treatment —
+     evokes the dark fabric backdrops Disney used when mounting
+     model sheets for review. Cream text on navy feels museum-formal. */
+  --navy: #1e2a44;
+  --navy-deep: #172035;
+  --cream: #efe9d8;
+  --cream-faded: #c2b89d;
+
   --serif: 'Fraunces', 'Iowan Old Style', Georgia, serif;
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
@@ -471,24 +479,69 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   position: relative;
 }
 
+/* Presentation-board masthead — sits at the top of the edit modal.
+   Deep navy with cream text, evoking the dark fabric backdrops used in
+   Disney's studio for mounting and reviewing model sheets. */
+.modal-masthead {
+  background: var(--navy);
+  background-image:
+    linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%),
+    repeating-linear-gradient(
+      45deg,
+      transparent 0 2px,
+      rgba(255,255,255,0.015) 2px 4px
+    );
+  color: var(--cream);
+  padding: 18px 48px 18px 28px;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  border-bottom: 3px solid var(--navy-deep);
+}
+
+.modal-masthead-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--cream-faded);
+}
+
+.modal-masthead-separator {
+  color: var(--cream-faded);
+  font-family: var(--mono);
+  opacity: 0.5;
+}
+
+.modal-masthead-id {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--cream);
+}
+
+/* Close button gets contrast treatment when it sits on the navy masthead. */
 .modal-close {
   position: absolute;
-  top: 16px;
+  top: 14px;
   right: 16px;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  width: 32px;
-  height: 32px;
+  background: transparent;
+  border: 1px solid rgba(239, 233, 216, 0.3);
+  width: 28px;
+  height: 28px;
   font-family: var(--mono);
   font-size: 16px;
-  color: var(--ink);
+  color: var(--cream);
   z-index: 2;
+  cursor: pointer;
+  line-height: 1;
 }
 
 .modal-close:hover {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
+  background: var(--cream);
+  color: var(--navy);
+  border-color: var(--cream);
 }
 
 .modal-body {
@@ -498,25 +551,131 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 }
 
 .modal-image {
-  padding: 32px;
+  padding: 32px 28px;
   background: var(--paper-deep);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  border-right: var(--rule-thin);
+  min-height: 400px;
+  gap: 18px;
+}
+
+/* Pin-dotted photostat look — tiny dark dots at corners evoke
+   how these sheets were literally pinned to studio boards. Kept
+   subtle (35% opacity, 5px diameter) so they register only on close
+   inspection rather than competing with the content. */
+.modal-image-frame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.modal-image-frame img {
+  display: block;
+  max-width: 100%;
+  max-height: 56vh;
+  object-fit: contain;
+  background: var(--paper);
+  box-shadow:
+    0 1px 2px rgba(26, 23, 19, 0.08),
+    0 6px 20px rgba(26, 23, 19, 0.18);
+}
+
+.modal-image-frame::before,
+.modal-image-frame::after,
+.modal-image-frame > .pin-dot-bl,
+.modal-image-frame > .pin-dot-br {
+  content: '';
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(26, 23, 19, 0.42);
+  box-shadow:
+    0 1px 1px rgba(0,0,0,0.2),
+    inset 0 -1px 0 rgba(255,255,255,0.15);
+  pointer-events: none;
+}
+
+.modal-image-frame::before { top: 7px; left: 7px; }
+.modal-image-frame::after  { top: 7px; right: 7px; }
+.modal-image-frame > .pin-dot-bl { bottom: 7px; left: 7px; }
+.modal-image-frame > .pin-dot-br { bottom: 7px; right: 7px; }
+
+/* Image-side metadata row — sits below the image, holds the sheet ID,
+   needs-research pill, bookmark icon, and image stats. Replaces
+   overlay badges on the image. */
+.image-metadata-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 4px;
+  width: 100%;
+  max-width: 100%;
+  justify-content: center;
+  min-height: 28px;
+}
+
+.image-metadata-row .res-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-faded);
+  letter-spacing: 0.05em;
+}
+
+/* Image-side action row — Replace, OCR, AI Extract. Buttons
+   rebalanced so the primary archival action (Save, elsewhere) wins
+   visual priority. AI Extract demotes from a red filled button to
+   a quiet tertiary. */
+.image-action-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-right: var(--rule-thin);
-  min-height: 400px;
+  gap: 6px;
+  flex-wrap: wrap;
+  width: 100%;
 }
 
-.modal-image img {
-  max-width: 100%;
-  max-height: 60vh;
-  object-fit: contain;
+.image-action-row button {
   background: var(--paper);
-  box-shadow: 0 4px 16px rgba(26, 23, 19, 0.15);
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.image-action-row button:hover {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.image-action-row button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.image-action-row .btn-ai-extract {
+  background: var(--paper);
+  color: var(--navy);
+  border-color: var(--navy);
+}
+
+.image-action-row .btn-ai-extract:hover {
+  background: var(--navy);
+  color: var(--cream);
 }
 
 .modal-meta {
-  padding: 40px 36px;
+  padding: 32px 36px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -761,6 +920,20 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   font-style: italic;
   color: var(--ink-faded);
   letter-spacing: 0;
+}
+
+/* Image-sources block specifically — long URLs were pushing columns
+   wider than their grid cells. Force wrap-anywhere on URL inputs and
+   allow grid cells to shrink below content width. */
+.form-repeatable > div {
+  min-width: 0;
+}
+
+.form-repeatable input[type="text"],
+.form-repeatable .form-input {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* ---------- Form sections (collapsible) ---------- */

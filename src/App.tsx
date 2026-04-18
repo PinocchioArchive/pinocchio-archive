@@ -21,6 +21,7 @@ import {
 } from './lib/github';
 import { useKeyboardShortcuts } from './lib/useKeyboardShortcuts';
 import { loadLists, addSheetsToList, createList } from './lib/lists';
+import { reverifyPendingSource } from './lib/archive';
 import { SheetCard } from './components/SheetCard';
 import { SheetListRow } from './components/SheetListRow';
 import { SheetDetail } from './components/SheetDetail';
@@ -173,6 +174,102 @@ export default function App() {
         setLoadError(e.message);
       });
   }, []);
+
+  // Auto-reverify pending Wayback captures when data loads. Runs in the
+  // background after a brief delay so it doesn't compete with initial
+  // render. Collects all status changes and, if the user is authenticated,
+  // commits a single batched update to avoid commit spam.
+  useEffect(() => {
+    if (!data) return;
+    // Find all pending sources across all sheets
+    const pending: {
+      sheetIdx: number;
+      sourceIdx: number;
+      src: {
+        url?: string;
+        archive_status?: 'not_attempted' | 'pending' | 'verified' | 'failed';
+        archive_captured_at?: string;
+        archive_url?: string;
+      };
+    }[] = [];
+    data.sheets.forEach((sheet, sheetIdx) => {
+      sheet.image_sources?.forEach((src, sourceIdx) => {
+        if (src.archive_status === 'pending' && src.url) {
+          pending.push({ sheetIdx, sourceIdx, src });
+        }
+      });
+    });
+    if (pending.length === 0) return;
+
+    let cancelled = false;
+    const run = async () => {
+      // Small delay so this doesn't fire during the first render
+      await new Promise((r) => setTimeout(r, 2000));
+      if (cancelled) return;
+      console.info(
+        `[Wayback reverify] Checking ${pending.length} pending source(s)…`
+      );
+      let anyChanged = false;
+      // Work from a snapshot — if the user edits during this, their edits
+      // will take precedence because we use functional setData updates.
+      for (const { sheetIdx, sourceIdx, src } of pending) {
+        if (cancelled) return;
+        try {
+          const outcome = await reverifyPendingSource(src);
+          if (!outcome || cancelled) continue;
+          anyChanged = true;
+          // Functional update — preserves any user edits since load
+          setData((current) => {
+            if (!current) return current;
+            const sheets = current.sheets.slice();
+            const sheet = sheets[sheetIdx];
+            if (!sheet) return current;
+            const sources = (sheet.image_sources || []).slice();
+            if (!sources[sourceIdx]) return current;
+            // Only update if still pending — if user manually changed it,
+            // respect that
+            if (sources[sourceIdx].archive_status !== 'pending') return current;
+            sources[sourceIdx] = {
+              ...sources[sourceIdx],
+              archive_status: outcome.archive_status,
+              archive_url: outcome.archive_url || sources[sourceIdx].archive_url,
+              ...(outcome.note ? { notes: sources[sourceIdx].notes } : {}),
+            };
+            sheets[sheetIdx] = { ...sheet, image_sources: sources };
+            return { ...current, sheets };
+          });
+        } catch (e) {
+          console.warn('[Wayback reverify] error on source:', src.url, e);
+        }
+      }
+      // If statuses changed and user is authenticated, persist one commit
+      if (anyChanged && getToken() && !cancelled) {
+        // Wait a beat so setData settles, then commit the current state.
+        // This is best-effort — if the commit fails (e.g., user offline),
+        // the local state is still updated and next load will re-check.
+        setTimeout(() => {
+          if (cancelled) return;
+          setData((current) => {
+            if (!current) return current;
+            void commitTextFile(
+              'data/sheets.json',
+              JSON.stringify(current, null, 2),
+              'Auto-verify Wayback statuses'
+            ).catch((e) =>
+              console.warn('[Wayback reverify] commit failed:', e)
+            );
+            return current;
+          });
+        }, 1000);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+    // Depend only on data identity; don't re-run on every edit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.sheets.length]);
 
   const filtered = useMemo(() => {
     if (!data) return [];

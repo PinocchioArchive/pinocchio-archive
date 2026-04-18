@@ -154,3 +154,68 @@ export async function captureAndVerify(
   if (!result.archive_url) result.archive_url = archive_url;
   return result;
 }
+
+// How long to wait before giving up on a pending capture and flipping to
+// 'failed'. Wayback captures normally complete within 30-60 seconds, but
+// busy sites or slow archiver queues can extend that. 5 minutes is well
+// past any legitimate in-flight window — anything still pending then has
+// almost certainly been silently rejected (robots.txt, site unreachable,
+// etc.), and pretending it's in progress is misleading.
+const PENDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+// Minimum age before we bother re-checking a pending source. Sources
+// less than 60s old are still within their initial verification window;
+// re-checking would just duplicate work.
+const MIN_RECHECK_AGE_MS = 60 * 1000; // 60s
+
+export interface ReverifyInput {
+  url?: string;
+  archive_status?: 'not_attempted' | 'pending' | 'verified' | 'failed';
+  archive_captured_at?: string;
+  archive_url?: string;
+}
+
+export interface ReverifyOutcome {
+  archive_status: 'pending' | 'verified' | 'failed';
+  archive_url?: string;
+  note?: string;
+}
+
+// Re-verify a single pending source. Returns an updated status based on
+// a fresh Availability API check. Sources that have been pending past
+// PENDING_TIMEOUT_MS get flipped to 'failed' even if verify returned
+// inconclusive — we stop pretending something's in flight when it isn't.
+export async function reverifyPendingSource(
+  src: ReverifyInput
+): Promise<ReverifyOutcome | null> {
+  if (src.archive_status !== 'pending' || !src.url) return null;
+  const capturedAt = src.archive_captured_at
+    ? Date.parse(src.archive_captured_at)
+    : 0;
+  if (!capturedAt) return null;
+  const age = Date.now() - capturedAt;
+  if (age < MIN_RECHECK_AGE_MS) return null; // too soon, leave pending
+
+  const result = await verifyWayback(src.url);
+  if (result.status === 'verified') {
+    return {
+      archive_status: 'verified',
+      archive_url: result.archive_url || src.archive_url,
+    };
+  }
+
+  // Availability API returned "failed" (no snapshot available).
+  // Two cases: (a) the capture is still in progress, or (b) it was
+  // silently rejected. We distinguish by age: past the timeout, treat
+  // as rejected; within the timeout, still pending.
+  if (age >= PENDING_TIMEOUT_MS) {
+    return {
+      archive_status: 'failed',
+      archive_url: src.archive_url,
+      note: result.error || 'No snapshot available after 5 minutes — site may block archiving',
+    };
+  }
+  // Within timeout: keep pending, don't update
+  return null;
+}
+

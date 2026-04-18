@@ -347,6 +347,39 @@ export function SheetEdit({
         <button className="modal-close" onClick={onCancel} aria-label="Close">
           ×
         </button>
+        <div className="modal-masthead">
+          <span className="modal-masthead-eyebrow">
+            {isNew ? 'New sheet' : 'Edit sheet'}
+          </span>
+          {draft.id && (
+            <>
+              <span className="modal-masthead-separator">·</span>
+              <span className="modal-masthead-id">{draft.id}</span>
+            </>
+          )}
+          {draft.title && (
+            <>
+              <span className="modal-masthead-separator">·</span>
+              <span
+                style={{
+                  fontFamily: 'var(--serif)',
+                  fontStyle: 'italic',
+                  fontSize: 14,
+                  color: 'var(--cream)',
+                  letterSpacing: 0,
+                  opacity: 0.9,
+                  textTransform: 'none',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: 400,
+                }}
+              >
+                {draft.title}
+              </span>
+            </>
+          )}
+        </div>
         <div className="modal-body">
           <div
             className="modal-image"
@@ -357,66 +390,70 @@ export function SheetEdit({
             onDragLeave={() => setImgDragging(false)}
             onDrop={onImgDrop}
             style={{
-              position: 'relative',
               outline: imgDragging ? '2px dashed var(--ink)' : 'none',
               outlineOffset: '-8px',
             }}
           >
             {currentImageSrc ? (
-              <div style={{ width: '100%', textAlign: 'center' }}>
-                <img
-                  src={currentImageSrc}
-                  alt="preview"
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: '60vh',
-                    objectFit: 'contain',
-                  }}
-                />
+              <>
+                <div className="modal-image-frame">
+                  <img src={currentImageSrc} alt="preview" />
+                  <span className="pin-dot-bl" aria-hidden="true" />
+                  <span className="pin-dot-br" aria-hidden="true" />
+                </div>
                 {(newImageDims || draft.image_width) && (
-                  <div
-                    style={{
-                      fontFamily: 'var(--mono)',
-                      fontSize: 10,
-                      letterSpacing: '0.05em',
-                      color: 'var(--ink-faded)',
-                      marginTop: 10,
-                    }}
-                  >
-                    {formatResolution(
-                      newImageDims?.width ?? draft.image_width,
-                      newImageDims?.height ?? draft.image_height
-                    )}
+                  <div className="image-metadata-row">
+                    <span className="res-label">
+                      {formatResolution(
+                        newImageDims?.width ?? draft.image_width,
+                        newImageDims?.height ?? draft.image_height
+                      )}
+                    </span>
                     {resTier === 'thumbnail' && (
                       <span
                         style={{
+                          fontFamily: 'var(--mono)',
+                          fontSize: 10,
                           color: 'var(--warn)',
-                          marginLeft: 8,
                           textTransform: 'uppercase',
+                          letterSpacing: '0.1em',
                         }}
                       >
-                        · low-res
+                        low-res
                       </span>
                     )}
                     {resTier === 'archival' && (
                       <span
                         style={{
+                          fontFamily: 'var(--mono)',
+                          fontSize: 10,
                           color: 'var(--success)',
-                          marginLeft: 8,
                           textTransform: 'uppercase',
+                          letterSpacing: '0.1em',
                         }}
                       >
-                        · archival
+                        archival
                       </span>
                     )}
                   </div>
                 )}
-                <div style={{ marginTop: 12, display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <label
-                    className="btn-small"
-                    style={{ cursor: 'pointer' }}
-                  >
-                    Replace image
+                <div className="image-action-row">
+                  <label style={{ cursor: 'pointer' }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        background: 'var(--paper)',
+                        border: '1px solid var(--rule)',
+                        color: 'var(--ink-soft)',
+                        fontFamily: 'var(--mono)',
+                        fontSize: 10,
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        padding: '6px 10px',
+                      }}
+                    >
+                      Replace
+                    </span>
                     <input
                       type="file"
                       accept="image/*"
@@ -428,16 +465,15 @@ export function SheetEdit({
                   </label>
                   <button
                     type="button"
-                    className="btn-small"
                     onClick={() => runExtraction('tesseract')}
                     disabled={!!extracting}
-                    title="Extract fields with free on-device OCR"
+                    title="Extract fields with on-device OCR (free)"
                   >
-                    {extracting === 'tesseract' ? 'Extracting…' : '⚙ OCR'}
+                    {extracting === 'tesseract' ? 'Extracting…' : 'OCR'}
                   </button>
                   <button
                     type="button"
-                    className="btn-small"
+                    className="btn-ai-extract"
                     onClick={() => runExtraction('claude')}
                     disabled={!!extracting || !getAnthropicKey()}
                     title={
@@ -445,20 +481,11 @@ export function SheetEdit({
                         ? 'Extract fields with Claude vision (paid, higher accuracy)'
                         : 'Add an Anthropic API key in Settings to enable'
                     }
-                    style={
-                      getAnthropicKey()
-                        ? {
-                            background: 'var(--accent)',
-                            color: 'var(--paper)',
-                            borderColor: 'var(--accent)',
-                          }
-                        : undefined
-                    }
                   >
                     {extracting === 'claude' ? 'Extracting…' : '✨ AI Extract'}
                   </button>
                 </div>
-              </div>
+              </>
             ) : (
               <label
                 style={{
@@ -1727,9 +1754,9 @@ function ArchiveStatusPill({ status }: { status?: ArchiveStatus }) {
       }}
       title={
         s === 'failed'
-          ? 'Snapshot does not resolve — robots.txt block or site unreachable'
+          ? "Wayback couldn't capture this URL. The site may block archiving via robots.txt, require JavaScript, or have other restrictions. Click 'Retry capture' to try again."
           : s === 'pending'
-          ? 'Capture fired, waiting for verification'
+          ? 'Capture fired, waiting for verification. Status auto-updates on next page load.'
           : s === 'verified'
           ? 'Snapshot exists and resolves on Wayback Machine'
           : 'URL has not been submitted to Wayback Machine'
