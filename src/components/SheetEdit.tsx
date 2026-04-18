@@ -26,7 +26,7 @@ import { TagInput } from './TagInput';
 import { AutocompleteInput } from './AutocompleteInput';
 import { ExtractionReview } from './ExtractionReview';
 import { tesseractExtractor } from '../lib/extraction/tesseract';
-import { claudeExtractor, getApiKey as getAnthropicKey } from '../lib/extraction/claude';
+import { claudeExtractor, claudeUrlExtractor, getApiKey as getAnthropicKey } from '../lib/extraction/claude';
 import type { ExtractionResult } from '../lib/extraction/types';
 
 interface Vocabularies {
@@ -81,6 +81,10 @@ export function SheetEdit({
   const [extractionToReview, setExtractionToReview] = useState<
     ExtractionResult | null
   >(null);
+  // When URL extraction fails, show a "paste page text instead" modal
+  // preloaded with the URL that failed. Null when not showing.
+  const [pasteFallbackUrl, setPasteFallbackUrl] = useState<string | null>(null);
+  const [pasteFallbackText, setPasteFallbackText] = useState('');
   const titleRef = useRef<HTMLInputElement>(null);
 
   const runExtraction = async (backend: 'tesseract' | 'claude') => {
@@ -102,6 +106,56 @@ export function SheetEdit({
         setExtracting(null);
         return;
       }
+      setExtractionToReview(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExtracting(null);
+    }
+  };
+
+  // Called from the Quick Add flow when the user pastes a URL and has
+  // AI extraction enabled. Fires the URL extraction and opens the review
+  // modal if Claude returns structured data. Falls back to a "paste page
+  // text" modal on failure.
+  const runUrlExtraction = async (url: string) => {
+    if (!getAnthropicKey()) return; // silent no-op without a key
+    setExtracting('claude');
+    setError(null);
+    try {
+      const result = await claudeUrlExtractor.extract(url);
+      if (result.error) {
+        // Open the paste-fallback modal so the user can provide the text manually
+        setPasteFallbackUrl(url);
+        setPasteFallbackText('');
+        setError(
+          `URL extraction failed: ${result.error}. Try pasting the page text manually.`
+        );
+        return;
+      }
+      setExtractionToReview(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExtracting(null);
+    }
+  };
+
+  // Pasted-text extraction fallback.
+  const runPastedTextExtraction = async () => {
+    if (!pasteFallbackText.trim()) return;
+    setExtracting('claude');
+    setError(null);
+    try {
+      const result = await claudeUrlExtractor.extractFromText(
+        pasteFallbackText
+      );
+      if (result.error) {
+        setError(`Extraction failed: ${result.error}`);
+        return;
+      }
+      setPasteFallbackUrl(null);
+      setPasteFallbackText('');
       setExtractionToReview(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -799,6 +853,8 @@ export function SheetEdit({
                   onChange={(v) => update('image_sources', v)}
                   sourceSuggestions={vocab.sourceNames}
                   sheetImageUrl={publicImageUrl || undefined}
+                  onUrlExtract={runUrlExtraction}
+                  hasAnthropicKey={!!getAnthropicKey()}
                 />
               </div>
 
@@ -966,6 +1022,103 @@ export function SheetEdit({
           onAccept={applyExtraction}
           onClose={() => setExtractionToReview(null)}
         />
+      )}
+      {pasteFallbackUrl && (
+        <div
+          className="modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setPasteFallbackUrl(null);
+              setPasteFallbackText('');
+            }
+          }}
+        >
+          <div
+            className="modal"
+            style={{ maxWidth: 620 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="modal-close"
+              onClick={() => {
+                setPasteFallbackUrl(null);
+                setPasteFallbackText('');
+              }}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <div className="modal-eyebrow">Extraction fallback</div>
+            <h2 className="modal-title">Paste page text</h2>
+            <p
+              style={{
+                fontSize: 13,
+                color: 'var(--ink-faded)',
+                fontStyle: 'italic',
+                margin: '0 0 12px',
+              }}
+            >
+              Claude couldn't fetch{' '}
+              <code style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
+                {pasteFallbackUrl.slice(0, 80)}
+                {pasteFallbackUrl.length > 80 ? '…' : ''}
+              </code>{' '}
+              directly — often due to bot blocking, paywalls, or required
+              JavaScript. Open the page in your browser, select and copy the
+              relevant text, and paste it here. Claude will extract the fields
+              from your pasted text.
+            </p>
+            <textarea
+              className="form-textarea"
+              value={pasteFallbackText}
+              onChange={(e) => setPasteFallbackText(e.target.value)}
+              placeholder="Paste the page text here…"
+              style={{ width: '100%', minHeight: 220, fontSize: 13 }}
+              autoFocus
+            />
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                marginTop: 12,
+                paddingTop: 10,
+                borderTop: '1px solid var(--rule)',
+              }}
+            >
+              <button
+                className="btn btn-filled"
+                onClick={() => void runPastedTextExtraction()}
+                disabled={!pasteFallbackText.trim() || extracting === 'claude'}
+              >
+                {extracting === 'claude'
+                  ? 'Extracting…'
+                  : 'Extract from pasted text'}
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  setPasteFallbackUrl(null);
+                  setPasteFallbackText('');
+                }}
+              >
+                Cancel
+              </button>
+              <div style={{ flex: 1 }} />
+              <a
+                href={pasteFallbackUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  alignSelf: 'center',
+                  fontSize: 12,
+                  color: 'var(--accent)',
+                }}
+              >
+                Open page ↗
+              </a>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1135,11 +1288,15 @@ function RepeatableImageSources({
   onChange,
   sourceSuggestions,
   sheetImageUrl,
+  onUrlExtract,
+  hasAnthropicKey,
 }: {
   items: ImageSource[];
   onChange: (v: ImageSource[]) => void;
   sourceSuggestions: { value: string; count: number }[];
-  sheetImageUrl?: string; // for "Search on Google Lens" against the current sheet image
+  sheetImageUrl?: string;
+  onUrlExtract?: (url: string) => void | Promise<void>;
+  hasAnthropicKey?: boolean;
 }) {
   const add = () =>
     onChange([
@@ -1160,8 +1317,11 @@ function RepeatableImageSources({
     onChange(items.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
 
   // "Quick add" flow: user pastes a URL, app auto-populates source_name/type
-  // from domain inference, fires Wayback capture in background.
+  // from domain inference, fires Wayback capture in background, and if
+  // AI extraction is enabled also asks Claude to read the page and
+  // populate the sheet's own fields.
   const [quickUrl, setQuickUrl] = useState('');
+  const [extractOnAdd, setExtractOnAdd] = useState(true);
   const [busy, setBusy] = useState(false);
 
   // Keep a ref to the latest items so background verify callbacks can
@@ -1195,6 +1355,12 @@ function RepeatableImageSources({
       const updated = [...items, newSource];
       onChange(updated);
       setQuickUrl('');
+
+      // Kick off AI extraction in parallel with Wayback capture. The parent
+      // handles showing the review modal; we just fire-and-forget here.
+      if (extractOnAdd && hasAnthropicKey && onUrlExtract) {
+        void onUrlExtract(normalized);
+      }
 
       // Fire capture + verify in background. Uses itemsRef to read the
       // latest state at verify time — the user may have added or removed
@@ -1251,55 +1417,86 @@ function RepeatableImageSources({
       <div
         style={{
           display: 'flex',
-          gap: 6,
+          flexDirection: 'column',
+          gap: 4,
           padding: '8px 10px',
           background: 'var(--paper-deep)',
           border: '1px dashed var(--rule)',
-          alignItems: 'center',
         }}
       >
-        <input
-          type="text"
-          className="form-input"
-          value={quickUrl}
-          placeholder="Paste URL to add a source (auto-fills + archives to Wayback)"
-          onChange={(e) => setQuickUrl(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              void doQuickAdd();
-            }
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            alignItems: 'center',
           }}
-          style={{ flex: 1, minWidth: 0 }}
-          disabled={busy}
-        />
-        <button
-          type="button"
-          className="btn-small"
-          onClick={() => void doQuickAdd()}
-          disabled={busy || !quickUrl.trim()}
-          title="Add source, auto-fill fields, capture to Wayback"
         >
-          {busy ? 'Adding…' : '+ Add'}
-        </button>
-        {sheetImageUrl && (
+          <input
+            type="text"
+            className="form-input"
+            value={quickUrl}
+            placeholder="Paste URL to add a source (auto-fills + archives to Wayback)"
+            onChange={(e) => setQuickUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void doQuickAdd();
+              }
+            }}
+            style={{ flex: 1, minWidth: 0 }}
+            disabled={busy}
+          />
           <button
             type="button"
             className="btn-small"
-            onClick={() =>
-              window.open(
-                `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(
-                  sheetImageUrl
-                )}`,
-                '_blank',
-                'noopener,noreferrer'
-              )
-            }
-            title="Open Google Lens in new tab — paste a result URL above to add"
-            style={{ whiteSpace: 'nowrap' }}
+            onClick={() => void doQuickAdd()}
+            disabled={busy || !quickUrl.trim()}
+            title="Add source, auto-fill fields, capture to Wayback"
           >
-            ↗ Lens
+            {busy ? 'Adding…' : '+ Add'}
           </button>
+          {sheetImageUrl && (
+            <button
+              type="button"
+              className="btn-small"
+              onClick={() =>
+                window.open(
+                  `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(
+                    sheetImageUrl
+                  )}`,
+                  '_blank',
+                  'noopener,noreferrer'
+                )
+              }
+              title="Open Google Lens in new tab — paste a result URL above to add"
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              ↗ Lens
+            </button>
+          )}
+        </div>
+        {hasAnthropicKey && (
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 11,
+              color: 'var(--ink-faded)',
+              fontFamily: 'var(--mono)',
+              letterSpacing: '0.03em',
+              cursor: 'pointer',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={extractOnAdd}
+              onChange={(e) => setExtractOnAdd(e.target.checked)}
+              style={{ margin: 0 }}
+            />
+            Also extract sheet fields from this page (Claude reads the URL, you
+            review proposed field values)
+          </label>
         )}
       </div>
 
