@@ -21,8 +21,8 @@
           "source_name": "Van Eaton Galleries",
           "url": "https://vegalleries.com/art/walt-disney/134/pinocchio-1940/pinocchio-photostat-model-sheet-id-janmodel20236",
           "retrieved": "2026-04-18",
-          "watermark": "",
-          "notes": "ly.",
+          "watermark": "Van Eaton SKU: janmodel20236",
+          "notes": "",
           "archive_status": "failed",
           "archive_captured_at": "2026-04-18T09:00:55.929Z"
         }
@@ -44,7 +44,7 @@
       ],
       "notes": "",
       "created_at": "2026-04-18T05:17:44.459Z",
-      "updated_at": "2026-04-18T11:13:33.281Z",
+      "updated_at": "2026-04-18T11:15:08.518Z",
       "image_width": 900,
       "image_height": 706,
       "sequence_association": "9-1",
