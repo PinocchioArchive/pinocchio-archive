@@ -8,7 +8,8 @@
       "sheet_number_suffix": "A",
       "title": "Shark Suggestions",
       "characters": [
-        "shark"
+        "shark",
+        "fish"
       ],
       "production_stamps": [],
       "department": "Character Model Department",
@@ -41,7 +42,7 @@
       ],
       "notes": "",
       "created_at": "2026-04-18T05:17:44.459Z",
-      "updated_at": "2026-04-18T10:30:19.417Z",
+      "updated_at": "2026-04-18T10:31:30.041Z",
       "image_width": 900,
       "image_height": 706,
       "sequence_association": "9-1"
