@@ -71,14 +71,17 @@ export function formatSequenceParts(s: string | undefined): {
 }
 
 // Parses the leading sequence number from a free-text sequence_association
-// field. Disney sequence numbers look like "1.5", "4.2", "4.10". Returns
-// a tuple of [major, minor] integers for safe numeric comparison (so that
-// 4.10 sorts after 4.2, unlike naive float parsing). Returns null if no
-// leading number is detectable.
+// field. Disney sequence numbers historically appear in several notations:
+//   - Dotted: "4.2", "4.10"  (the common modern form)
+//   - Dashed: "9-1", "4-2"   (how they appear on some 1939 sheets)
+// Returns a tuple of [major, minor] integers for safe numeric comparison
+// (so that 4.10 sorts after 4.2, unlike naive float parsing). Returns null
+// if no leading number is detectable.
 //
 // Accepts:
 //   "4.2"                    → [4, 2]
 //   "4.10"                   → [4, 10]
+//   "9-1"                    → [9, 1]
 //   "1.5 Give a Little..."   → [1, 5]  (ignores trailing text)
 //   "Stromboli"              → null
 //   ""                       → null
@@ -86,7 +89,7 @@ export function parseSequenceNumber(
   s: string | undefined
 ): [number, number] | null {
   if (!s) return null;
-  const m = s.trim().match(/^(\d+)(?:\.(\d+))?/);
+  const m = s.trim().match(/^(\d+)(?:[.\-](\d+))?/);
   if (!m) return null;
   const major = parseInt(m[1], 10);
   const minor = m[2] ? parseInt(m[2], 10) : 0;
@@ -375,4 +378,34 @@ export function computeResearchStatus(sheet: ModelSheet): ResearchStatus {
   if (signals >= 5) return 'complete';
   if (signals >= 2) return 'some';
   return 'stub';
+}
+
+// Returns all sheets in the same numbered series as `sheet` — i.e., sheets
+// sharing the same prefix+numeric base but possibly different suffixes.
+// M217, M217-A, M217-B are all one series; M218 is a different series.
+//
+// Used by the detail view to show "also in this series" so researchers
+// can quickly page between physically-related artifacts (alternate
+// takes, continuations, revisions) that share a Character Model
+// Department intake number.
+//
+// The current sheet is INCLUDED in the result; callers can decide
+// whether to filter it out for display. Results are sorted by suffix
+// (empty suffix first, then A, B, C…) via the existing compareSheets.
+//
+// Returns an empty array for sheets with no numeric base (numeric === 0).
+export function findSeriesMembers(
+  sheet: ModelSheet,
+  allSheets: ModelSheet[]
+): ModelSheet[] {
+  if (!sheet.sheet_number_numeric) return [];
+  const members = allSheets.filter(
+    (s) =>
+      s.sheet_number_prefix === sheet.sheet_number_prefix &&
+      s.sheet_number_numeric === sheet.sheet_number_numeric
+  );
+  // Only return a "series" if there's more than one member. A lone sheet
+  // has no series to speak of.
+  if (members.length <= 1) return [];
+  return members.slice().sort(compareSheets);
 }

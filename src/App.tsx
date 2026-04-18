@@ -7,6 +7,7 @@ import {
   compareSheetsBySheetMark,
   extractVocabulary,
   extractSourceVocabulary,
+  findSeriesMembers,
   getRecentDefaults,
   makeEmptySheet,
   migrateArchive,
@@ -1439,6 +1440,8 @@ export default function App() {
           onEdit={() => setEditingId(selected.id)}
           onDelete={() => handleDelete(selected.id)}
           onFocusInContext={() => handleFocusInContext(selected.id)}
+          seriesMembers={findSeriesMembers(selected, data.sheets)}
+          onSelectSibling={(id) => setSelectedId(id)}
         />
       )}
 

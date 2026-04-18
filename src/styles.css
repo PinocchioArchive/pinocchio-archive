@@ -2064,3 +2064,153 @@ button.btn-small,
   border-color: var(--ink);
   outline: none;
 }
+
+/* Wayback preservation badge — a subordinate link attached to a source's
+   primary URL. Styled as a small pill rather than a full-weight link to
+   signal that it's metadata about the preservation state of the source,
+   not an independent source in its own right. */
+.provenance-wayback-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(26, 23, 19, 0.04);
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.5;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.provenance-wayback-badge:hover,
+.provenance-wayback-badge:focus-visible {
+  background: var(--paper-deep);
+  border-color: var(--ink-soft);
+  color: var(--ink);
+  outline: none;
+  text-decoration: none;
+}
+
+/* ---------- Series strip (detail view) ---------- */
+/*
+ * Shows other sheets in the same M-numbered series (M217-A, M217-B, etc.)
+ * beneath the main sheet image. Horizontal strip of small thumbnails with
+ * the sheet ID label below each. The current sheet renders as non-clickable
+ * with a subtle outline marking it as "you are here." Clicking another
+ * thumbnail swaps the detail view to that sibling.
+ *
+ * Designed to be quiet — this is scholarly context, not a primary action.
+ * Sits in the image column (left side) below the search / OCR buttons.
+ */
+
+.series-strip {
+  margin-top: 20px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.series-strip-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-faded);
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.series-strip-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 8px 8px;
+  /* Hide scrollbar track visually but keep it functional for users who
+     need it. Leaving the native bar visible on hover helps on touch. */
+  scrollbar-width: thin;
+  justify-content: flex-start;
+}
+
+.series-strip-scroll::-webkit-scrollbar { height: 6px; }
+.series-strip-scroll::-webkit-scrollbar-track { background: transparent; }
+.series-strip-scroll::-webkit-scrollbar-thumb {
+  background: var(--rule);
+  border-radius: 3px;
+}
+
+.series-strip-item {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 64px;
+  transition: transform 0.12s;
+}
+
+.series-strip-item:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.series-strip-item:disabled {
+  cursor: default;
+}
+
+.series-strip-thumb {
+  width: 64px;
+  height: 52px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.series-strip-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.series-strip-thumb-empty {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--ink-faded);
+}
+
+.series-strip-item:hover:not(:disabled) .series-strip-thumb {
+  border-color: var(--ink-soft);
+}
+
+/* Current sheet — subtle navy outline to match the masthead,
+   signaling "this is the one you're looking at." */
+.series-strip-item-current .series-strip-thumb {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 2px rgba(30, 42, 68, 0.15);
+}
+
+.series-strip-id {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.series-strip-item-current .series-strip-id {
+  color: var(--navy);
+  font-weight: 600;
+}

@@ -5,7 +5,7 @@ import {
   googleLensUrl,
   tineyeUrl,
 } from '../lib/image';
-import { formatSequenceParts, computeResearchStatus } from '../lib/sheets';
+import { computeResearchStatus } from '../lib/sheets';
 import {
   toggleSheetInList,
   createList,
@@ -26,6 +26,15 @@ interface Props {
   // Close the modal and scroll to this sheet's card in the grid,
   // switching sort to "Sheet Number" so neighboring sheets are visible.
   onFocusInContext?: () => void;
+  // Other sheets in the same numbered series (e.g., M217, M217-A, M217-B
+  // are all one series). Does NOT include the current sheet. When empty,
+  // the "Also in this series" strip is hidden entirely. Parent supplies
+  // this so the detail view doesn't need access to the full archive.
+  seriesMembers?: ModelSheet[];
+  // Called when the user clicks a sibling in the series strip. Parent
+  // typically swaps the selected sheet to that sibling's id, causing
+  // this modal to re-render with the new sheet.
+  onSelectSibling?: (id: string) => void;
 }
 
 function Field({
@@ -56,6 +65,8 @@ export function SheetDetail({
   onEdit,
   onDelete,
   onFocusInContext,
+  seriesMembers,
+  onSelectSibling,
 }: Props) {
   const imageSrc = sheet.image_file ? `${imageBase}${sheet.image_file}` : '';
   const publicImageUrl = sheet.image_file
@@ -190,10 +201,72 @@ export function SheetDetail({
                   </a>
                 </div>
               )}
+              {seriesMembers && seriesMembers.length > 0 && (
+                <div className="series-strip">
+                  <div className="series-strip-label">
+                    Also in this series
+                  </div>
+                  <div className="series-strip-scroll">
+                    {seriesMembers.map((m) => {
+                      const isCurrent = m.id === sheet.id;
+                      const thumbSrc = m.image_file
+                        ? `${imageBase}${m.image_file}`
+                        : '';
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className={`series-strip-item ${
+                            isCurrent ? 'series-strip-item-current' : ''
+                          }`}
+                          onClick={() => {
+                            if (!isCurrent && onSelectSibling) {
+                              onSelectSibling(m.id);
+                            }
+                          }}
+                          disabled={isCurrent}
+                          title={
+                            isCurrent
+                              ? `${m.id} — current`
+                              : `${m.id}${m.title ? ' · ' + m.title : ''}`
+                          }
+                        >
+                          <div className="series-strip-thumb">
+                            {thumbSrc ? (
+                              <img
+                                src={thumbSrc}
+                                alt=""
+                                loading="lazy"
+                              />
+                            ) : (
+                              <span className="series-strip-thumb-empty">
+                                —
+                              </span>
+                            )}
+                          </div>
+                          <div className="series-strip-id">{m.id}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <div className="modal-meta">
             <div className="modal-header">
+              {onFocusInContext ? (
+                <button
+                  type="button"
+                  className="modal-id modal-id-button"
+                  onClick={onFocusInContext}
+                  title="See this sheet in context among its neighbors"
+                >
+                  {sheet.id}
+                </button>
+              ) : (
+                <div className="modal-id">{sheet.id}</div>
+              )}
               <h1 className="modal-title">
                 {sheet.title || (
                   <span
@@ -249,37 +322,16 @@ export function SheetDetail({
                   {sheet.sequence_association && (
                     <Field
                       label="Sequence"
-                      value={(() => {
-                        const parts = formatSequenceParts(
-                          sheet.sequence_association
-                        );
-                        return (
-                          <>
-                            {parts.number && (
-                              <span
-                                style={{
-                                  fontFamily: 'var(--mono)',
-                                  letterSpacing: '0.02em',
-                                }}
-                              >
-                                [SQ {parts.number}]
-                              </span>
-                            )}
-                            {parts.rest && (
-                              <span
-                                style={{ fontStyle: 'italic', marginLeft: 6 }}
-                              >
-                                ({parts.rest})
-                              </span>
-                            )}
-                            {!parts.number && !parts.rest && (
-                              <em style={{ color: 'var(--ink-faded)' }}>
-                                empty
-                              </em>
-                            )}
-                          </>
-                        );
-                      })()}
+                      value={
+                        <span
+                          style={{
+                            fontFamily: 'var(--mono)',
+                            letterSpacing: '0.02em',
+                          }}
+                        >
+                          {sheet.sequence_association}
+                        </span>
+                      }
                     />
                   )}
                   {sheet.artist && (
@@ -551,122 +603,158 @@ export function SheetDetail({
                   <ul
                     style={{
                       margin: 0,
-                      paddingLeft: 18,
-                      fontSize: 13,
-                      lineHeight: 1.5,
+                      padding: 0,
+                      listStyle: 'none',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
                     }}
                   >
-                    {sheet.image_sources.map((s, i) => (
-                      <li key={i}>
-                        <strong>{s.source_name || s.source_type}</strong>
-                        {(s.archive_url || s.url) && ' — '}
-                        {s.archive_url && (
-                          <>
-                            <a
-                              href={s.archive_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                color: 'var(--accent)',
-                                // Failed status = de-emphasize but still show the link.
-                                // The API may be wrong about availability; let the user
-                                // verify by clicking through.
-                                opacity:
-                                  s.archive_status === 'failed' ? 0.75 : 1,
-                                textDecoration:
-                                  s.archive_status === 'failed'
-                                    ? 'underline dotted'
-                                    : 'underline',
-                              }}
-                              title={
-                                s.archive_status === 'verified'
-                                  ? 'Wayback Machine snapshot — verification confirms it resolves'
-                                  : s.archive_status === 'pending'
-                                  ? 'Wayback capture submitted; verification still pending. Click to check manually.'
-                                  : s.archive_status === 'failed'
-                                  ? 'Availability API reports no snapshot, but try clicking — the API is sometimes wrong. Recheck or retry capture in edit mode.'
-                                  : 'Wayback Machine snapshot'
-                              }
-                            >
-                              Wayback ↗
-                            </a>
-                            {/* Trust indicator — small icon next to the link */}
-                            <span
-                              style={{
-                                fontFamily: 'var(--mono)',
-                                fontSize: 10,
-                                marginLeft: 4,
-                                color:
-                                  s.archive_status === 'verified'
-                                    ? 'var(--success)'
-                                    : s.archive_status === 'failed'
-                                    ? 'var(--danger)'
-                                    : s.archive_status === 'pending'
-                                    ? 'var(--warn)'
-                                    : 'var(--ink-faded)',
-                              }}
-                              title={
-                                s.archive_status === 'verified'
-                                  ? 'Verified'
-                                  : s.archive_status === 'pending'
-                                  ? 'Pending'
-                                  : s.archive_status === 'failed'
-                                  ? 'API reports unavailable (may be wrong)'
-                                  : 'Not verified'
-                              }
-                            >
-                              {s.archive_status === 'verified'
-                                ? '✓'
-                                : s.archive_status === 'failed'
-                                ? '?'
-                                : s.archive_status === 'pending'
-                                ? '…'
-                                : ''}
-                            </span>
-                          </>
-                        )}
-                        {s.url && (
-                          <>
-                            {s.archive_url ? ' · ' : ''}
-                            <a
-                              href={s.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                color: s.archive_url
-                                  ? 'var(--ink-faded)'
-                                  : 'var(--accent)',
-                                fontSize: s.archive_url ? 11 : 'inherit',
-                              }}
-                              title={
-                                s.archive_url
-                                  ? 'Original source (may have changed or disappeared)'
-                                  : 'Original source'
-                              }
-                            >
-                              {s.archive_url ? 'original' : 'link'}
-                            </a>
-                          </>
-                        )}
-                        {s.retrieved && (
-                          <span
+                    {sheet.image_sources.map((s, i) => {
+                      // Prefer showing the original URL as the primary link.
+                      // Wayback is a preservation badge attached to it, not a
+                      // separate equal link. If there's no original URL but
+                      // there is an archive_url, the Wayback URL becomes the
+                      // primary link.
+                      const primaryHref = s.url || s.archive_url;
+                      const displayUrl = s.url || s.archive_url || '';
+                      // Trim to something readable — full URLs on list items
+                      // hurt scanability. Show protocol-less, path-clipped.
+                      const displayShort = displayUrl
+                        .replace(/^https?:\/\//, '')
+                        .replace(/^www\./, '')
+                        .slice(0, 60) + (displayUrl.length > 60 ? '…' : '');
+                      const statusIcon =
+                        s.archive_status === 'verified'
+                          ? '✓'
+                          : s.archive_status === 'pending'
+                          ? '…'
+                          : s.archive_status === 'failed'
+                          ? '?'
+                          : null;
+                      const statusColor =
+                        s.archive_status === 'verified'
+                          ? 'var(--success)'
+                          : s.archive_status === 'pending'
+                          ? 'var(--warn)'
+                          : s.archive_status === 'failed'
+                          ? 'var(--danger)'
+                          : 'var(--ink-faded)';
+                      const statusTitle =
+                        s.archive_status === 'verified'
+                          ? 'Wayback snapshot verified'
+                          : s.archive_status === 'pending'
+                          ? 'Wayback capture pending verification'
+                          : s.archive_status === 'failed'
+                          ? 'Wayback API reports unavailable (may be wrong)'
+                          : 'Not yet archived';
+                      return (
+                        <li
+                          key={i}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 2,
+                          }}
+                        >
+                          <div
                             style={{
-                              color: 'var(--ink-faded)',
-                              fontFamily: 'var(--mono)',
-                              fontSize: 11,
-                              marginLeft: 6,
+                              fontWeight: 600,
+                              fontSize: 14,
                             }}
                           >
-                            ret. {s.retrieved}
-                          </span>
-                        )}
-                        {s.notes && (
-                          <div style={{ color: 'var(--ink-faded)' }}>
-                            {s.notes}
+                            {s.source_name || s.source_type}
                           </div>
-                        )}
-                      </li>
-                    ))}
+                          {primaryHref && (
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'baseline',
+                                flexWrap: 'wrap',
+                                gap: 8,
+                                fontSize: 12,
+                              }}
+                            >
+                              <a
+                                href={primaryHref}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  color: 'var(--accent)',
+                                  fontFamily: 'var(--mono)',
+                                  textDecoration: 'underline',
+                                }}
+                                title={displayUrl}
+                              >
+                                {displayShort}
+                              </a>
+                              {s.archive_url && s.url && (
+                                // Small Wayback badge — secondary access
+                                // point to the preserved snapshot of the
+                                // same URL.
+                                <a
+                                  href={s.archive_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="provenance-wayback-badge"
+                                  title={statusTitle}
+                                >
+                                  Wayback
+                                  {statusIcon && (
+                                    <span
+                                      style={{
+                                        color: statusColor,
+                                        marginLeft: 4,
+                                        fontFamily: 'var(--mono)',
+                                      }}
+                                    >
+                                      {statusIcon}
+                                    </span>
+                                  )}
+                                </a>
+                              )}
+                              {!s.url && s.archive_url && statusIcon && (
+                                // Primary link is already Wayback; show
+                                // just the verification icon next to it.
+                                <span
+                                  style={{
+                                    color: statusColor,
+                                    fontFamily: 'var(--mono)',
+                                    fontSize: 10,
+                                  }}
+                                  title={statusTitle}
+                                >
+                                  {statusIcon}
+                                </span>
+                              )}
+                              {s.retrieved && (
+                                <span
+                                  style={{
+                                    color: 'var(--ink-faded)',
+                                    fontFamily: 'var(--mono)',
+                                    fontSize: 11,
+                                  }}
+                                >
+                                  ret. {s.retrieved}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {s.notes && (
+                            <div
+                              style={{
+                                color: 'var(--ink-faded)',
+                                fontSize: 12,
+                                fontStyle: 'italic',
+                                marginTop: 2,
+                              }}
+                            >
+                              {s.notes}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </>
               )}

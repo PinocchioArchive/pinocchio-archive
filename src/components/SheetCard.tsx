@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ModelSheet } from '../types/schema';
 import { resolutionTier } from '../lib/image';
-import { formatSequenceParts, computeResearchStatus } from '../lib/sheets';
+import { computeResearchStatus } from '../lib/sheets';
 import { toggleSheetInList, createList, type UserList } from '../lib/lists';
 import { useDialog } from './Dialog';
 
@@ -394,9 +394,7 @@ function formatDateChip(
 // component decoupled from the filter state.
 function TagPile({ sheet }: { sheet: ModelSheet }) {
   const dateInfo = formatDateChip(sheet.date_on_sheet, sheet.date_precision);
-  const seqParts = sheet.sequence_association
-    ? formatSequenceParts(sheet.sequence_association)
-    : null;
+  const seqValue = sheet.sequence_association?.trim() || null;
 
   const apply = (e: React.MouseEvent, key: string, value: string) => {
     e.stopPropagation();
@@ -409,14 +407,14 @@ function TagPile({ sheet }: { sheet: ModelSheet }) {
   if (
     !dateInfo &&
     sheet.characters.length === 0 &&
-    !seqParts &&
+    !seqValue &&
     sheet.tags.length === 0
   ) {
     return null;
   }
 
   const hasIdentityRow =
-    sheet.characters.length > 0 || !!seqParts || !!dateInfo;
+    sheet.characters.length > 0 || !!seqValue || !!dateInfo;
 
   return (
     <>
@@ -433,7 +431,7 @@ function TagPile({ sheet }: { sheet: ModelSheet }) {
               {c}
             </button>
           ))}
-          {seqParts && seqParts.number && (
+          {seqValue && (
             <button
               className="tagchip tagchip-seq"
               onClick={(e) =>
@@ -442,7 +440,7 @@ function TagPile({ sheet }: { sheet: ModelSheet }) {
               title="Filter by sequence"
             >
               <span className="tagchip-icon">§</span>
-              SQ {seqParts.number}
+              {seqValue}
             </button>
           )}
           {dateInfo && (
