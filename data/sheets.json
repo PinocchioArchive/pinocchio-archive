@@ -7,9 +7,7 @@
       "sheet_number_numeric": 217,
       "sheet_number_suffix": "A",
       "title": "Shark Suggestions",
-      "characters": [
-        "N/A"
-      ],
+      "characters": [],
       "production_stamps": [],
       "department": "Character Model Department",
       "date_precision": "unknown",
@@ -21,7 +19,7 @@
           "source_name": "Van Eaton Galleries",
           "url": "https://vegalleries.com/art/walt-disney/134/pinocchio-1940/pinocchio-photostat-model-sheet-id-janmodel20236",
           "retrieved": "2026-04-18",
-          "watermark": "Van Eaton SKU: janmodel20236",
+          "watermark": "",
           "notes": "",
           "archive_status": "failed",
           "archive_captured_at": "2026-04-18T09:00:55.929Z"
@@ -37,20 +35,19 @@
       "confidence": "unverified",
       "needs_research": true,
       "tags": [
-        "Undersea",
-        "Shark",
-        "Fish",
-        "Animal"
+        "undersea",
+        "shark",
+        "fish",
+        "animal"
       ],
       "notes": "",
       "created_at": "2026-04-18T05:17:44.459Z",
-      "updated_at": "2026-04-18T11:15:08.518Z",
+      "updated_at": "2026-04-18T11:16:27.810Z",
       "image_width": 900,
       "image_height": 706,
       "sequence_association": "9-1",
       "date_on_sheet": "6/30/39",
-      "sequence_association_confidence": "medium",
-      "artist": "Unknown"
+      "sequence_association_confidence": "medium"
     }
   ]
 }
