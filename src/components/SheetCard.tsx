@@ -261,10 +261,17 @@ export function SheetCard({
         position: 'relative',
         cursor: 'pointer',
         ...(focused
-          ? { outline: '2px solid var(--ink)', outlineOffset: '-2px' }
+          ? {
+              outline: '2px solid var(--accent)',
+              outlineOffset: '2px',
+              borderColor: 'var(--accent)',
+            }
           : {}),
         ...(selected
-          ? { outline: '2px solid var(--accent)', outlineOffset: '-2px' }
+          ? {
+              outline: '2px solid var(--accent)',
+              outlineOffset: '2px',
+            }
           : {}),
       }}
     >
