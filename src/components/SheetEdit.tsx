@@ -572,15 +572,14 @@ export function SheetEdit({
                 </span>
               </div>
 
-              <div className="form-field">
-                <label className="form-label">Title</label>
+              <div className="form-field form-field-wide">
                 <input
                   ref={titleRef}
                   type="text"
-                  className="form-input"
+                  className="form-title-prose"
                   value={draft.title}
                   onChange={(e) => update('title', e.target.value)}
-                  placeholder="e.g., Dutch Girl Puppet and Dachshund"
+                  placeholder="Untitled sheet — add a title"
                 />
               </div>
 
@@ -673,15 +672,6 @@ export function SheetEdit({
               </div>
 
               <div className="form-field">
-                <label className="form-label">Department</label>
-                <AutocompleteInput
-                  value={draft.department || ''}
-                  onChange={(v) => update('department', v || undefined)}
-                  suggestions={vocab.departments}
-                />
-              </div>
-
-              <div className="form-field">
                 <label className="form-label">Artist</label>
                 <AutocompleteInput
                   value={draft.artist || ''}
@@ -721,16 +711,6 @@ export function SheetEdit({
                   <option value="range">Range</option>
                   <option value="unknown">Unknown</option>
                 </select>
-              </div>
-
-              <div className="form-field form-field-wide">
-                <label className="form-label">Approvals (as signed)</label>
-                <TagInput
-                  values={draft.approvals}
-                  onChange={(v) => update('approvals', v)}
-                  suggestions={vocab.approvals}
-                  placeholder="Joe Grant"
-                />
               </div>
 
               <div className="form-field form-field-wide">
@@ -946,7 +926,7 @@ export function SheetEdit({
               <div className="form-field form-field-wide">
                 <label className="form-label">Notes</label>
                 <textarea
-                  className="form-textarea"
+                  className="form-notes-prose"
                   value={draft.notes}
                   onChange={(e) => update('notes', e.target.value)}
                   placeholder="Research thoughts, open questions, provenance puzzles…"

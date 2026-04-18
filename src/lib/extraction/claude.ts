@@ -164,10 +164,14 @@ export const claudeExtractor: Extractor = {
       });
       if (!res.ok) {
         const body = await res.text();
+        console.error(
+          `[Claude image extraction] API ${res.status} error:`,
+          body
+        );
         return {
           extracted_by: 'claude',
           extracted_at: new Date().toISOString(),
-          error: `API ${res.status}: ${body.slice(0, 200)}`,
+          error: `API ${res.status}: ${body.slice(0, 400)}`,
         };
       }
       const data = await res.json();
@@ -249,26 +253,32 @@ export const claudeUrlExtractor = {
           'Content-Type': 'application/json',
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
+          // web_fetch is in beta and requires this header. Without it, the API
+          // returns 400 for the tool spec.
+          'anthropic-beta': 'web-fetch-2025-09-10',
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
           model: getModel(),
-          max_tokens: 1536,
+          max_tokens: 2048,
           system: URL_SYSTEM_PROMPT,
+          // Use the web_fetch server tool — it's how Anthropic's API fetches
+          // arbitrary HTML pages. The previous `document`/`url` source type
+          // only works for PDFs and was rejected with 400 for HTML.
+          tools: [
+            {
+              type: 'web_fetch_20250910',
+              name: 'web_fetch',
+              max_uses: 2,
+            },
+          ],
           messages: [
             {
               role: 'user',
               content: [
                 {
-                  type: 'document',
-                  source: {
-                    type: 'url',
-                    url: url,
-                  },
-                },
-                {
                   type: 'text',
-                  text: `Extract the structured data about the sheet described at this URL: ${url}\n\nReturn only the JSON described in your instructions. If you cannot access or read the page, return {}.`,
+                  text: `Please fetch the page at ${url} and extract the structured data about the sheet described there. Return only the JSON described in your instructions, with no prose before or after. If you cannot access the page or it doesn't describe a sheet, return {}.`,
                 },
               ],
             },
@@ -277,33 +287,54 @@ export const claudeUrlExtractor = {
       });
       if (!res.ok) {
         const body = await res.text();
+        console.error(
+          `[Claude URL extraction] API ${res.status} error:`,
+          body
+        );
         return {
           extracted_by: 'claude',
           extracted_at: new Date().toISOString(),
-          error: `API ${res.status}: ${body.slice(0, 300)}`,
+          error: `API ${res.status}: ${body.slice(0, 400)}`,
         };
       }
       const data = await res.json();
-      const textBlock = (data.content || []).find(
-        (b: any) => b.type === 'text'
+      // The response is an array of content blocks. After a web_fetch tool
+      // call, the final assistant text block contains Claude's extraction.
+      // Ignore server_tool_use and web_fetch_tool_result blocks; concatenate
+      // all text blocks and parse.
+      const allText = (data.content || [])
+        .filter((b: any) => b.type === 'text')
+        .map((b: any) => b.text || '')
+        .join('\n');
+      // Check for a web_fetch error that Claude's response might surface
+      const fetchError = (data.content || []).find(
+        (b: any) =>
+          b.type === 'web_fetch_tool_result' &&
+          b.content?.type === 'web_fetch_tool_error'
       );
-      const rawText = textBlock?.text || '';
-      const parsed = parseResponse(rawText);
-      // If Claude returned an empty object, that's its signal that the page
-      // had no useful info — surface that as an error so the UI can help
-      // the user try a different approach.
+      if (fetchError) {
+        const errCode =
+          fetchError.content?.error_code || 'web_fetch_failed';
+        return {
+          extracted_by: 'claude',
+          extracted_at: new Date().toISOString(),
+          raw_text: allText,
+          error: `Could not fetch URL (${errCode}). This often happens with JavaScript-rendered pages, paywalled sites, or bot-blocked pages. Try pasting page text manually.`,
+        };
+      }
+      const parsed = parseResponse(allText);
       if (Object.keys(parsed).length === 0) {
         return {
           extracted_by: 'claude',
           extracted_at: new Date().toISOString(),
-          raw_text: rawText,
+          raw_text: allText,
           error:
-            "Claude couldn't find relevant data on this page. It may be paywalled, require JavaScript, or not describe a sheet at all. Try pasting page text manually.",
+            "Claude fetched the page but couldn't find relevant sheet data. It may not describe a sheet, or structure is ambiguous. Try pasting page text manually to give clearer signal.",
         };
       }
       return {
         ...parsed,
-        raw_text: rawText,
+        raw_text: allText,
         extracted_by: 'claude',
         extracted_at: new Date().toISOString(),
       };
