@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   loadLists,
   createList,
@@ -24,8 +24,10 @@ type PendingImport =
 
 export function ManageLists({ onClose, onChange }: Props) {
   // Local re-render trigger — lists come from localStorage directly,
-  // and we bump this key after every write.
-  const [tick, setTick] = useState(0);
+  // and we bump this counter after every write to force a re-render.
+  // The value itself is never read; the underscore prefix silences
+  // TypeScript's unused-variable warning.
+  const [, setTick] = useState(0);
   const data = loadLists();
   const [newName, setNewName] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -34,7 +36,7 @@ export function ManageLists({ onClose, onChange }: Props) {
   const { confirmDialog, alertDialog } = useDialog();
 
   const bump = () => {
-    setTick(tick + 1);
+    setTick((t) => t + 1);
     onChange();
   };
 
@@ -46,15 +48,31 @@ export function ManageLists({ onClose, onChange }: Props) {
     bump();
   };
 
+  // Tracks whether the in-progress rename was cancelled by Escape. Set
+  // by the Escape handler; checked in commitRename so the subsequent
+  // onBlur (fired when the input unmounts) doesn't accidentally commit
+  // the value the user explicitly cancelled.
+  const renameCancelledRef = useRef(false);
+
   const startRename = (l: UserList) => {
+    renameCancelledRef.current = false;
     setRenamingId(l.id);
     setRenameValue(l.name);
   };
   const commitRename = () => {
+    if (renameCancelledRef.current) {
+      renameCancelledRef.current = false;
+      return;
+    }
     if (renamingId && renameValue.trim()) {
       renameList(renamingId, renameValue.trim());
       bump();
     }
+    setRenamingId(null);
+    setRenameValue('');
+  };
+  const cancelRename = () => {
+    renameCancelledRef.current = true;
     setRenamingId(null);
     setRenameValue('');
   };
@@ -322,10 +340,7 @@ export function ManageLists({ onClose, onChange }: Props) {
                       onChange={(e) => setRenameValue(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') commitRename();
-                        else if (e.key === 'Escape') {
-                          setRenamingId(null);
-                          setRenameValue('');
-                        }
+                        else if (e.key === 'Escape') cancelRename();
                       }}
                       onBlur={commitRename}
                       style={{ flex: 1 }}

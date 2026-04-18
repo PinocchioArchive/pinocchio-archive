@@ -12,6 +12,9 @@
   --success: #4a6b3a;
   --warn: #a87a3a;
   --error: #8b2e1f;
+  /* Alias — callers historically used both --error and --danger for
+     destructive/error UI. Keeping both so existing references work. */
+  --danger: #8b2e1f;
 
   /* Deep navy for the "presentation board" masthead treatment —
      evokes the dark fabric backdrops Disney used when mounting

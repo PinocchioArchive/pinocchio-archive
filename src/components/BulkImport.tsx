@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { ModelSheet } from '../types/schema';
 import { guessSheetNumberFromFilename, makeEmptySheet } from '../lib/sheets';
 import { getImageDimensions } from '../lib/image';
@@ -34,10 +34,33 @@ export function BulkImport({ existingIds, defaults, onImport, onCancel }: Props)
   const [pending, setPending] = useState<PendingImage[]>([]);
   const [dragging, setDragging] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [extracting, setExtracting] = useState(false);
+  // Count of active extraction batches. Multiple batches can run
+  // concurrently if the user drops files, then drops more before the
+  // first batch finishes. A single bool would get prematurely cleared
+  // by whichever batch finished first.
+  const [extractingCount, setExtractingCount] = useState(0);
+  const extracting = extractingCount > 0;
   const [error, setError] = useState<string | null>(null);
   const [runOcr, setRunOcr] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Keep a ref pointed at the latest pending list so the unmount cleanup
+  // can revoke every active blob URL without the effect re-running on
+  // every update (which would cause it to revoke URLs while they're
+  // still being displayed).
+  const pendingRef = useRef<PendingImage[]>([]);
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+
+  // Revoke all blob URLs on unmount. Handles the case where the user
+  // closes BulkImport via Escape or backdrop click without importing —
+  // those paths don't hit the manual revoke calls elsewhere.
+  useEffect(() => {
+    return () => {
+      pendingRef.current.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    };
+  }, []);
 
   const handleFiles = async (files: FileList | File[]) => {
     const arr = Array.from(files).filter((f) => f.type.startsWith('image/'));
@@ -71,56 +94,59 @@ export function BulkImport({ existingIds, defaults, onImport, onCancel }: Props)
   };
 
   const runExtractionForBatch = async (batch: PendingImage[]) => {
-    setExtracting(true);
-    for (const item of batch) {
-      // Skip very small images — OCR won't help and will probably produce garbage.
-      if (item.width && item.width < 600) {
+    setExtractingCount((n) => n + 1);
+    try {
+      for (const item of batch) {
+        // Skip very small images — OCR won't help and will probably produce garbage.
+        if (item.width && item.width < 600) {
+          setPending((p) =>
+            p.map((x) =>
+              x.file === item.file ? { ...x, extractionStatus: 'skipped' } : x
+            )
+          );
+          continue;
+        }
         setPending((p) =>
           p.map((x) =>
-            x.file === item.file ? { ...x, extractionStatus: 'skipped' } : x
+            x.file === item.file ? { ...x, extractionStatus: 'running' } : x
           )
         );
-        continue;
+        try {
+          const result = await tesseractExtractor.extract(item.file);
+          setPending((p) =>
+            p.map((x) =>
+              x.file === item.file
+                ? {
+                    ...x,
+                    extraction: result,
+                    extractionStatus: result.error ? 'error' : 'done',
+                    // If OCR gave a high-confidence sheet number, use it as finalId
+                    finalId:
+                      !x.finalId && result.sheet_number?.confidence === 'high'
+                        ? result.sheet_number.value
+                        : x.finalId,
+                    error: result.error,
+                  }
+                : x
+            )
+          );
+        } catch (e) {
+          setPending((p) =>
+            p.map((x) =>
+              x.file === item.file
+                ? {
+                    ...x,
+                    extractionStatus: 'error',
+                    error: e instanceof Error ? e.message : String(e),
+                  }
+                : x
+            )
+          );
+        }
       }
-      setPending((p) =>
-        p.map((x) =>
-          x.file === item.file ? { ...x, extractionStatus: 'running' } : x
-        )
-      );
-      try {
-        const result = await tesseractExtractor.extract(item.file);
-        setPending((p) =>
-          p.map((x) =>
-            x.file === item.file
-              ? {
-                  ...x,
-                  extraction: result,
-                  extractionStatus: result.error ? 'error' : 'done',
-                  // If OCR gave a high-confidence sheet number, use it as finalId
-                  finalId:
-                    !x.finalId && result.sheet_number?.confidence === 'high'
-                      ? result.sheet_number.value
-                      : x.finalId,
-                  error: result.error,
-                }
-              : x
-          )
-        );
-      } catch (e) {
-        setPending((p) =>
-          p.map((x) =>
-            x.file === item.file
-              ? {
-                  ...x,
-                  extractionStatus: 'error',
-                  error: e instanceof Error ? e.message : String(e),
-                }
-              : x
-          )
-        );
-      }
+    } finally {
+      setExtractingCount((n) => Math.max(0, n - 1));
     }
-    setExtracting(false);
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -522,7 +548,7 @@ export function BulkImport({ existingIds, defaults, onImport, onCancel }: Props)
               display: 'flex',
               gap: 8,
               paddingTop: 16,
-              borderTop: '2px solid var(--ink)',
+              borderTop: '1px solid var(--rule)',
             }}
           >
             <button

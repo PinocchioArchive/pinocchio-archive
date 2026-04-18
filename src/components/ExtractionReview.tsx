@@ -138,10 +138,13 @@ function buildProposals(
 
 // Applies an accepted proposal to a partial sheet update. Handles multi-value
 // fields and the special case of id (which also updates sheet_number_* parts).
+// The `sheet` argument is the current record — needed so other_markings can
+// append to existing notes rather than overwriting them.
 function applyProposal(
   update: Partial<ModelSheet>,
   p: FieldProposal,
-  editedValue: string
+  editedValue: string,
+  sheet: ModelSheet
 ): Partial<ModelSheet> {
   const v = editedValue;
   switch (p.field) {
@@ -180,8 +183,18 @@ function applyProposal(
       return { ...update, department: v };
     case 'sequence_association':
       return { ...update, sequence_association: v };
-    case 'other_markings':
-      return { ...update, notes: update.notes ? `${update.notes}\n\n${v}` : v };
+    case 'other_markings': {
+      // Append to existing notes (or to any notes already accrued in
+      // this commit), never overwrite. Prior bug: this read only from
+      // `update.notes`, ignoring sheet.notes entirely, so accepting an
+      // other_markings proposal on a sheet with existing notes would
+      // silently erase them.
+      const existing = update.notes ?? sheet.notes ?? '';
+      return {
+        ...update,
+        notes: existing ? `${existing}\n\n${v}` : v,
+      };
+    }
     default:
       return update;
   }
@@ -229,7 +242,7 @@ export function ExtractionReview({
     let update: Partial<ModelSheet> = {};
     for (const p of proposals) {
       if (accepted[p.field]) {
-        update = applyProposal(update, p, editedValues[p.field]);
+        update = applyProposal(update, p, editedValues[p.field], sheet);
       }
     }
     onAccept(update);
@@ -245,7 +258,7 @@ export function ExtractionReview({
           onClick={(e) => e.stopPropagation()}
           style={{ maxWidth: 600 }}
         >
-          <button className="modal-close" onClick={onClose}>
+          <button className="modal-close" onClick={onClose} aria-label="Close">
             ×
           </button>
           <div style={{ padding: '32px 36px' }}>
@@ -269,7 +282,7 @@ export function ExtractionReview({
           onClick={(e) => e.stopPropagation()}
           style={{ maxWidth: 600 }}
         >
-          <button className="modal-close" onClick={onClose}>
+          <button className="modal-close" onClick={onClose} aria-label="Close">
             ×
           </button>
           <div style={{ padding: '32px 36px' }}>
@@ -320,7 +333,7 @@ export function ExtractionReview({
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 1100 }}
       >
-        <button className="modal-close" onClick={onClose}>
+        <button className="modal-close" onClick={onClose} aria-label="Close">
           ×
         </button>
         <div className="modal-body">
