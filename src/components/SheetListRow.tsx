@@ -59,14 +59,6 @@ export function SheetListRow({ sheet, imageBase, onClick, focused }: Props) {
         {latestWebOcc ? latestWebOcc.count.toLocaleString() : '—'}
       </div>
       <div className="list-row-flags">
-        {sheet.in_my_physical_collection && (
-          <span
-            className="card-badge"
-            style={{ position: 'static', fontSize: 8 }}
-          >
-            Owned
-          </span>
-        )}
         {sheet.needs_research && (
           <span
             style={{

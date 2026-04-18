@@ -15,14 +15,17 @@ import {
   fileToBase64,
   getRepoConfig,
   getToken,
+  verifyToken,
 } from './lib/github';
 import { useKeyboardShortcuts } from './lib/useKeyboardShortcuts';
+import { loadLists, addSheetsToList, createList } from './lib/lists';
 import { SheetCard } from './components/SheetCard';
 import { SheetListRow } from './components/SheetListRow';
 import { SheetDetail } from './components/SheetDetail';
 import { SheetEdit } from './components/SheetEdit';
 import { Settings } from './components/Settings';
 import { BulkImport } from './components/BulkImport';
+import { ManageLists } from './components/ManageLists';
 
 type SortMode =
   | 'number'
@@ -42,7 +45,7 @@ interface FilterState {
   character: string | null;
   tag: string | null;
   needsResearch: boolean;
-  inCollection: boolean;
+  listId: string | null; // filter to a specific user list (local storage)
   sort: SortMode;
   view: ViewMode;
 }
@@ -55,7 +58,7 @@ function readFiltersFromUrl(): FilterState {
     character: params.get('char'),
     tag: params.get('tag'),
     needsResearch: params.get('research') === '1',
-    inCollection: params.get('owned') === '1',
+    listId: params.get('list'),
     sort: (params.get('sort') as SortMode) || 'number',
     view: (params.get('view') as ViewMode) || 'grid',
   };
@@ -68,7 +71,7 @@ function writeFiltersToUrl(f: FilterState) {
   if (f.character) params.set('char', f.character);
   if (f.tag) params.set('tag', f.tag);
   if (f.needsResearch) params.set('research', '1');
-  if (f.inCollection) params.set('owned', '1');
+  if (f.listId) params.set('list', f.listId);
   if (f.sort !== 'number') params.set('sort', f.sort);
   if (f.view !== 'grid') params.set('view', f.view);
   const qs = params.toString();
@@ -85,8 +88,60 @@ export default function App() {
   const [creatingNew, setCreatingNew] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const [showManageLists, setShowManageLists] = useState(false);
+  // Select mode toggles checkboxes on cards; in this mode clicking a card
+  // toggles selection rather than opening the detail view. Used for
+  // bulk "add to list" operations.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Bump this whenever user lists are mutated (from Manage Lists modal or
+  // from detail / card bookmark interactions) so dependent useMemos rebuild.
+  const [listsTick, setListsTick] = useState(0);
+  const bumpLists = useCallback(() => setListsTick((t) => t + 1), []);
   const [focusedIdx, setFocusedIdx] = useState(0);
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Authentication state. `null` = verification pending (initial load).
+  // `true` = GitHub PAT present and verified against GitHub API.
+  // `false` = no token, or token invalid/expired, or network failure.
+  // When false, admin UI (Add/Edit/Delete/Bulk) is hidden entirely.
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  // Verifies the stored token against GitHub's /user endpoint. Called once
+  // on mount, and again whenever Settings is closed (in case the user just
+  // configured a new token). Falls back to read-only mode on any error.
+  const checkAuth = useCallback(async () => {
+    if (!getToken()) {
+      setIsAuthenticated(false);
+      return;
+    }
+    try {
+      const result = await verifyToken();
+      setIsAuthenticated(result.ok);
+    } catch {
+      setIsAuthenticated(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void checkAuth();
+  }, [checkAuth]);
+
+  // Re-check auth when Settings modal closes — the user may have just
+  // configured a token or disconnected.
+  const handleCloseSettings = () => {
+    setShowSettings(false);
+    void checkAuth();
+  };
 
   // Persist filters to URL whenever they change.
   useEffect(() => {
@@ -111,7 +166,7 @@ export default function App() {
       .then((raw) => setData(migrateArchive(raw)))
       .catch((e) => {
         console.warn('Could not load sheets.json, starting empty:', e);
-        setData({ schema_version: 3, sheets: [] });
+        setData({ schema_version: 4, sheets: [] });
         setLoadError(e.message);
       });
   }, []);
@@ -126,8 +181,18 @@ export default function App() {
     if (filters.character)
       list = list.filter((s) => s.characters.includes(filters.character!));
     if (filters.tag) list = list.filter((s) => s.tags.includes(filters.tag!));
-    if (filters.inCollection)
-      list = list.filter((s) => s.in_my_physical_collection);
+    if (filters.listId) {
+      // Re-read the specific list from localStorage so filter is fresh.
+      const userLists = loadLists().lists;
+      const sel = userLists.find((l) => l.id === filters.listId);
+      if (sel) {
+        const ids = new Set(sel.sheet_ids);
+        list = list.filter((s) => ids.has(s.id));
+      } else {
+        // List was deleted underneath us — show nothing and let UI recover.
+        list = [];
+      }
+    }
     if (filters.needsResearch) list = list.filter((s) => s.needs_research);
     if (filters.search.trim()) {
       const q = filters.search.toLowerCase();
@@ -167,7 +232,7 @@ export default function App() {
         break;
     }
     return list;
-  }, [data, filters]);
+  }, [data, filters, listsTick]);
 
   // For the "Group by character" view: each character gets a group, and
   // each sheet that lists that character appears in that group. A sheet with
@@ -200,6 +265,12 @@ export default function App() {
         sheets: [...sheets].sort(compareSheets),
       }));
   }, [data, filtered]);
+
+  // User-local lists (from localStorage). Re-read whenever listsTick bumps.
+  const userLists = useMemo(() => {
+    return loadLists().lists;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listsTick]);
 
   const vocab = useMemo(() => {
     if (!data)
@@ -426,7 +497,6 @@ export default function App() {
       'date_on_sheet',
       'date_precision',
       'approvals',
-      'in_collection',
       'confidence',
       'needs_research',
       'rarity_market',
@@ -466,7 +536,6 @@ export default function App() {
         s.date_on_sheet || '',
         s.date_precision,
         s.approvals.join('; '),
-        s.in_my_physical_collection ? 'yes' : 'no',
         s.confidence,
         s.needs_research ? 'yes' : 'no',
         s.rarity.market,
@@ -490,9 +559,10 @@ export default function App() {
 
   // Keyboard shortcuts
   const openNewSheet = useCallback(() => {
+    if (!isAuthenticated) return;
     if (editing || creatingNew || selected) return;
     setCreatingNew(true);
-  }, [editing, creatingNew, selected]);
+  }, [editing, creatingNew, selected, isAuthenticated]);
 
   const focusSearch = useCallback(() => {
     const el = document.querySelector(
@@ -508,12 +578,14 @@ export default function App() {
     {
       key: 'b',
       handler: () => {
+        if (!isAuthenticated) return;
         if (!editing && !creatingNew && !selected) setShowBulk(true);
       },
     },
     {
       key: 'e',
       handler: () => {
+        if (!isAuthenticated) return;
         if (selected && !editing) setEditingId(selected.id);
       },
     },
@@ -544,7 +616,8 @@ export default function App() {
         if (editing) return; // edit form handles its own Esc
         if (selected) setSelectedId(null);
         else if (creatingNew) setCreatingNew(false);
-        else if (showSettings) setShowSettings(false);
+        else if (showSettings) handleCloseSettings();
+        else if (showManageLists) setShowManageLists(false);
         else if (showBulk) setShowBulk(false);
       },
     },
@@ -569,7 +642,7 @@ export default function App() {
     filters.character ||
     filters.tag ||
     filters.needsResearch ||
-    filters.inCollection;
+    filters.listId;
 
   const clearFilters = () =>
     setFilters((f) => ({
@@ -579,7 +652,7 @@ export default function App() {
       character: null,
       tag: null,
       needsResearch: false,
-      inCollection: false,
+      listId: null,
     }));
 
   const recentDefaults = getRecentDefaults(data.sheets);
@@ -593,8 +666,25 @@ export default function App() {
           <h1 className="masthead-title">
             Pinocchio <em>Model Sheet</em> Archive
           </h1>
-          <div className="masthead-subtitle">
-            Character Model Department · Research Finding Aid
+          <div
+            className="masthead-subtitle"
+            style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+          >
+            <span>Character Model Department · Research Finding Aid</span>
+            {isAuthenticated === false && (
+              <span
+                style={{
+                  background: 'var(--paper-deep)',
+                  border: '1px solid var(--rule)',
+                  color: 'var(--ink-soft)',
+                  padding: '2px 8px',
+                  letterSpacing: '0.1em',
+                }}
+                title="Read-only view. Sign in via Settings to edit."
+              >
+                Public view
+              </span>
+            )}
           </div>
         </div>
         <div className="masthead-meta">
@@ -611,7 +701,7 @@ export default function App() {
                   appearances across {groupedByCharacter.length} characters
                 </>
               )}
-            {incompleteQueue.length > 0 && (
+            {incompleteQueue.length > 0 && isAuthenticated && (
               <>
                 {' '}·{' '}
                 <span style={{ color: 'var(--warn)' }}>
@@ -665,38 +755,99 @@ export default function App() {
           <option value="by_character">View: Group by Character</option>
         </select>
         <button
-          className="btn-primary"
-          onClick={() => setShowBulk(true)}
-          title="Bulk import (b)"
+          onClick={() => {
+            if (selectMode) clearSelection();
+            setSelectMode((v) => !v);
+          }}
+          title="Toggle multi-select (for bulk list actions)"
+          style={
+            selectMode
+              ? {
+                  background: 'var(--ink)',
+                  color: 'var(--paper)',
+                  borderColor: 'var(--ink)',
+                }
+              : undefined
+          }
         >
-          ⬒ Bulk
+          {selectMode ? 'Done selecting' : 'Select'}
         </button>
-        <button
-          className="btn-primary"
-          onClick={() => setCreatingNew(true)}
-          title="New (n)"
-        >
-          + Add
-        </button>
+        {isAuthenticated && (
+          <>
+            <button
+              className="btn-primary"
+              onClick={() => setShowBulk(true)}
+              title="Bulk import (b)"
+            >
+              ⬒ Bulk
+            </button>
+            <button
+              className="btn-primary"
+              onClick={() => setCreatingNew(true)}
+              title="New (n)"
+            >
+              + Add
+            </button>
+          </>
+        )}
       </div>
 
       <div className="facet-bar">
-        <span className="facet-label">Toggles</span>
-        <button
-          className={`chip ${filters.inCollection ? 'active' : ''}`}
-          onClick={() =>
-            setFilters((f) => ({ ...f, inCollection: !f.inCollection }))
-          }
+        {isAuthenticated && (
+          <>
+            <span className="facet-label">Toggles</span>
+            <button
+              className={`chip ${filters.needsResearch ? 'active' : ''}`}
+              onClick={() =>
+                setFilters((f) => ({ ...f, needsResearch: !f.needsResearch }))
+              }
+            >
+              Needs research ({incompleteQueue.length})
+            </button>
+          </>
+        )}
+
+        <span
+          className="facet-label"
+          style={{ marginLeft: isAuthenticated ? 12 : 0 }}
         >
-          Owned only
-        </button>
+          Lists
+        </span>
+        {userLists.length === 0 && (
+          <span
+            style={{
+              fontSize: 11,
+              color: 'var(--ink-faded)',
+              fontStyle: 'italic',
+            }}
+          >
+            None yet.
+          </span>
+        )}
+        {userLists.slice(0, 6).map((l) => (
+          <button
+            key={l.id}
+            className={`chip ${filters.listId === l.id ? 'active' : ''}`}
+            onClick={() =>
+              setFilters((f) => ({
+                ...f,
+                listId: f.listId === l.id ? null : l.id,
+              }))
+            }
+            title={`${l.sheet_ids.length} sheet${
+              l.sheet_ids.length === 1 ? '' : 's'
+            }`}
+          >
+            {l.name} ({l.sheet_ids.length})
+          </button>
+        ))}
         <button
-          className={`chip ${filters.needsResearch ? 'active' : ''}`}
-          onClick={() =>
-            setFilters((f) => ({ ...f, needsResearch: !f.needsResearch }))
-          }
+          className="chip"
+          onClick={() => setShowManageLists(true)}
+          style={{ fontStyle: 'italic' }}
+          title="Create, rename, delete, export / import lists"
         >
-          Needs research ({incompleteQueue.length})
+          Manage…
         </button>
 
         {vocab.sequences.length > 0 && (
@@ -762,6 +913,75 @@ export default function App() {
           </button>
         )}
       </div>
+
+      {selectMode && (
+        <div
+          style={{
+            padding: '8px 24px',
+            borderBottom: '1px solid var(--rule)',
+            background: 'var(--paper-deep)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            fontSize: 13,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'var(--mono)',
+              fontSize: 11,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              color: 'var(--ink-faded)',
+            }}
+          >
+            {selectedIds.size === 0
+              ? 'Click cards to select'
+              : `${selectedIds.size} selected`}
+          </span>
+          {selectedIds.size > 0 && (
+            <>
+              <button
+                className="btn-small"
+                onClick={() => {
+                  setSelectedIds(new Set(filtered.map((s) => s.id)));
+                }}
+                title="Select all currently filtered sheets"
+              >
+                Select all filtered ({filtered.length})
+              </button>
+              <button className="btn-small" onClick={clearSelection}>
+                Clear selection
+              </button>
+              <div style={{ flex: 1 }} />
+              <AddToListPicker
+                userLists={userLists}
+                count={selectedIds.size}
+                onChoose={(listIdOrNew) => {
+                  let listId = listIdOrNew;
+                  if (listIdOrNew === '__new__') {
+                    const name = prompt('Name for new list');
+                    if (!name || !name.trim()) return;
+                    listId = createList(name.trim()).id;
+                  }
+                  const added = addSheetsToList(
+                    listId,
+                    Array.from(selectedIds)
+                  );
+                  bumpLists();
+                  const list = loadLists().lists.find((l) => l.id === listId);
+                  flashToast(
+                    `Added ${added} sheet${added === 1 ? '' : 's'} to "${
+                      list?.name ?? 'list'
+                    }"`
+                  );
+                }}
+              />
+            </>
+          )}
+        </div>
+      )}
 
       {loadError && data.sheets.length === 0 && (
         <div
@@ -840,6 +1060,11 @@ export default function App() {
                     sheet={s}
                     imageBase={BASE}
                     onClick={() => setSelectedId(s.id)}
+                    userLists={userLists}
+                    onListsChanged={bumpLists}
+                    selectMode={selectMode}
+                    selected={selectedIds.has(s.id)}
+                    onSelectToggle={() => toggleSelect(s.id)}
                   />
                 ))}
               </div>
@@ -855,6 +1080,11 @@ export default function App() {
               imageBase={BASE}
               onClick={() => setSelectedId(s.id)}
               focused={i === focusedIdx}
+              userLists={userLists}
+              onListsChanged={bumpLists}
+              selectMode={selectMode}
+              selected={selectedIds.has(s.id)}
+              onSelectToggle={() => toggleSelect(s.id)}
             />
           ))}
         </div>
@@ -886,13 +1116,16 @@ export default function App() {
           sheet={selected}
           imageBase={BASE}
           publicBaseUrl={publicBaseUrl}
+          canEdit={!!isAuthenticated}
+          userLists={userLists}
+          onListsChanged={bumpLists}
           onClose={() => setSelectedId(null)}
           onEdit={() => setEditingId(selected.id)}
           onDelete={() => handleDelete(selected.id)}
         />
       )}
 
-      {editing && (
+      {editing && isAuthenticated && (
         <SheetEdit
           sheet={editing}
           imageBase={BASE}
@@ -907,7 +1140,7 @@ export default function App() {
         />
       )}
 
-      {creatingNew && (
+      {creatingNew && isAuthenticated && (
         <SheetEdit
           sheet={makeEmptySheet('', recentDefaults)}
           imageBase={BASE}
@@ -922,9 +1155,16 @@ export default function App() {
         />
       )}
 
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showManageLists && (
+        <ManageLists
+          onClose={() => setShowManageLists(false)}
+          onChange={bumpLists}
+        />
+      )}
 
-      {showBulk && (
+      {showSettings && <Settings onClose={handleCloseSettings} />}
+
+      {showBulk && isAuthenticated && (
         <BulkImport
           existingIds={existingIds}
           defaults={recentDefaults}
@@ -973,5 +1213,41 @@ export default function App() {
         n new · b bulk · / search · j/k move · ↵ open · e edit · esc close
       </div>
     </div>
+  );
+}
+
+// Tiny inline component used by the select-mode action bar. Renders a
+// dropdown of user lists + a "+ New list" option. Kept in App.tsx since
+// it's used only here.
+function AddToListPicker({
+  userLists,
+  count,
+  onChoose,
+}: {
+  userLists: { id: string; name: string; sheet_ids: string[] }[];
+  count: number;
+  onChoose: (listId: string) => void;
+}) {
+  const [value, setValue] = useState('');
+  return (
+    <select
+      value={value}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (!v) return;
+        onChoose(v);
+        setValue(''); // reset so user can repeat
+      }}
+      style={{ fontSize: 12, padding: '4px 8px' }}
+      aria-label="Add selected sheets to a list"
+    >
+      <option value="">Add {count} to list…</option>
+      {userLists.map((l) => (
+        <option key={l.id} value={l.id}>
+          {l.name} ({l.sheet_ids.length})
+        </option>
+      ))}
+      <option value="__new__">+ New list…</option>
+    </select>
   );
 }

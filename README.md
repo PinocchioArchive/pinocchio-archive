@@ -42,7 +42,7 @@ For records with partial information, flip `Needs Research` to `Yes` and save �
 - Filename-based sheet number guessing for bulk imports.
 
 ### Finding things
-- URL-persistent filters — bookmarkable views like "all Girls of All Nations sheets owned physically."
+- URL-persistent filters — bookmarkable views like "all Girls of All Nations sheets" or "everything in my research list for chapter 3."
 - Facet chips with counts: "Girls of All Nations (22)".
 - Search across ID, title, characters, sequence, notes, tags, approvals. "m174" matches "M174-A".
 - Five sort modes: sheet number (numeric-correct), date on sheet, title, recently updated, recently added.

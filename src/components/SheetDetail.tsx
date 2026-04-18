@@ -5,11 +5,19 @@ import {
   googleLensUrl,
   tineyeUrl,
 } from '../lib/image';
+import {
+  toggleSheetInList,
+  createList,
+  type UserList,
+} from '../lib/lists';
 
 interface Props {
   sheet: ModelSheet;
   imageBase: string;
   publicBaseUrl: string;
+  canEdit: boolean; // hides Edit/Delete when false
+  userLists: UserList[];
+  onListsChanged: () => void;
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -36,6 +44,9 @@ export function SheetDetail({
   sheet,
   imageBase,
   publicBaseUrl,
+  canEdit,
+  userLists,
+  onListsChanged,
   onClose,
   onEdit,
   onDelete,
@@ -323,12 +334,108 @@ export function SheetDetail({
             )}
 
             <div className="modal-section">
+              <div
+                className="modal-section-label"
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 8,
+                  justifyContent: 'space-between',
+                }}
+              >
+                <span>In your lists</span>
+                <span
+                  style={{
+                    fontFamily: 'var(--serif)',
+                    fontStyle: 'italic',
+                    fontSize: 11,
+                    textTransform: 'none',
+                    letterSpacing: 0,
+                    color: 'var(--ink-faded)',
+                  }}
+                >
+                  stored in this browser only
+                </span>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 4,
+                  alignItems: 'center',
+                }}
+              >
+                {userLists.length === 0 ? (
+                  <>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontStyle: 'italic',
+                        color: 'var(--ink-faded)',
+                      }}
+                    >
+                      No lists yet.
+                    </span>
+                    <button
+                      className="chip"
+                      style={{ fontSize: 11 }}
+                      onClick={() => {
+                        const name = prompt(
+                          'Name for your first list (e.g., "In my collection", "For thesis")'
+                        );
+                        if (!name || !name.trim()) return;
+                        const l = createList(name.trim());
+                        toggleSheetInList(l.id, sheet.id);
+                        onListsChanged();
+                      }}
+                    >
+                      + Create list and add
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {userLists.map((l) => {
+                      const inList = l.sheet_ids.includes(sheet.id);
+                      return (
+                        <button
+                          key={l.id}
+                          className={`chip ${inList ? 'active' : ''}`}
+                          onClick={() => {
+                            toggleSheetInList(l.id, sheet.id);
+                            onListsChanged();
+                          }}
+                          title={
+                            inList
+                              ? `Remove from "${l.name}"`
+                              : `Add to "${l.name}"`
+                          }
+                        >
+                          {inList ? '✓ ' : '+ '}
+                          {l.name}
+                        </button>
+                      );
+                    })}
+                    <button
+                      className="chip"
+                      style={{ fontSize: 11, fontStyle: 'italic' }}
+                      onClick={() => {
+                        const name = prompt('Name for new list');
+                        if (!name || !name.trim()) return;
+                        const l = createList(name.trim());
+                        toggleSheetInList(l.id, sheet.id);
+                        onListsChanged();
+                      }}
+                    >
+                      + New list
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-section">
               <div className="modal-section-label">Provenance</div>
               <dl>
-                <Field
-                  label="In my collection"
-                  value={sheet.in_my_physical_collection ? 'Yes' : 'No'}
-                />
                 <Field label="Confidence" value={sheet.confidence} />
               </dl>
               {sheet.image_sources.length > 0 && (
@@ -548,16 +655,20 @@ export function SheetDetail({
             )}
 
             <div className="modal-actions">
-              <button
-                className="btn btn-filled"
-                onClick={onEdit}
-                title="E"
-              >
-                Edit
-              </button>
-              <button className="btn btn-danger" onClick={onDelete}>
-                Delete
-              </button>
+              {canEdit && (
+                <>
+                  <button
+                    className="btn btn-filled"
+                    onClick={onEdit}
+                    title="E"
+                  >
+                    Edit
+                  </button>
+                  <button className="btn btn-danger" onClick={onDelete}>
+                    Delete
+                  </button>
+                </>
+              )}
               <div style={{ flex: 1 }} />
               <div
                 style={{

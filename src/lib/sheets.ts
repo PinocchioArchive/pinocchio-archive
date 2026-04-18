@@ -102,7 +102,6 @@ export function makeEmptySheet(
     approvals: defaults.approvals || [],
     image_file: '',
     image_sources: [],
-    in_my_physical_collection: false,
     published_references: [],
     web_occurrences: [],
     rarity: {
@@ -123,10 +122,11 @@ export function makeEmptySheet(
 // Migrate older schema versions up to the current one.
 // v1 → v2: add needs_research, web_occurrences
 // v2 → v3: rename sequence → sequence_association, add production_stamps
+// v3 → v4: strip in_my_physical_collection — ownership now lives in per-visitor
+//          local lists (see lib/lists.ts), not in the public archive.
 export function migrateArchive(raw: any): ArchiveData {
   const version = raw?.schema_version ?? 1;
   const sheets: ModelSheet[] = (raw?.sheets || []).map((s: any) => {
-    // v2 → v3 field rename
     const seqAssoc =
       s.sequence_association !== undefined
         ? s.sequence_association
@@ -146,14 +146,16 @@ export function migrateArchive(raw: any): ArchiveData {
         s.sequence_association_confidence ??
         (seqAssoc ? 'medium' : undefined),
       production_stamps: s.production_stamps ?? [],
-      // Remove the old field to keep records clean after migration.
+      // Fields removed across migrations — set to undefined so they don't
+      // accidentally survive a partial migration and confuse downstream code.
       sequence: undefined,
+      in_my_physical_collection: undefined,
     };
   });
-  if (version < 3) {
-    console.info(`Migrated archive from v${version} to v3`);
+  if (version < 4) {
+    console.info(`Migrated archive from v${version} to v4`);
   }
-  return { schema_version: 3, sheets };
+  return { schema_version: 4, sheets };
 }
 
 // Extracts unique values from an array of sheets for autocomplete / facet UIs.
