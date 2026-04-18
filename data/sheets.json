@@ -19,7 +19,6 @@
           "source_name": "Van Eaton Galleries",
           "url": "https://vegalleries.com/art/walt-disney/134/pinocchio-1940/pinocchio-photostat-model-sheet-id-janmodel20236",
           "retrieved": "2026-04-18",
-          "watermark": "",
           "notes": "",
           "archive_status": "failed",
           "archive_captured_at": "2026-04-18T09:00:55.929Z"
@@ -29,11 +28,10 @@
           "source_type": "other",
           "source_name": "vegalleries.com",
           "retrieved": "2026-04-18",
-          "watermark": "",
           "notes": "",
           "source_name_inferred": false,
           "source_type_inferred": false,
-          "archive_status": "failed",
+          "archive_status": "pending",
           "archive_captured_at": "2026-04-18T21:33:17.829Z",
           "archive_url": "https://web.archive.org/web/https://vegalleries.com/art/walt-disney/134/pinocchio-1940/pinocchio-photostat-model-sheet-id-janmodel20236"
         }
@@ -60,7 +58,8 @@
       "image_height": 706,
       "sequence_association": "9-1",
       "date_on_sheet": "6/30/39",
-      "sequence_association_confidence": "medium"
+      "sequence_association_confidence": "medium",
+      "sheet_marks": []
     }
   ]
 }
