@@ -21,6 +21,14 @@
   --cream: #efe9d8;
   --cream-faded: #c2b89d;
 
+  /* Gentle rounding — applied broadly to soften the archival-document feel
+     without losing the paper/ink typography language. Small for inputs and
+     chips, a touch larger for cards and modals. */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
   --serif: 'Fraunces', 'Iowan Old Style', Georgia, serif;
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
@@ -1172,4 +1180,114 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   .list-row > *:nth-child(n+5) {
     display: none;
   }
+}
+
+/* ---------- Softening pass (rounded corners) ---------- */
+/* Applied as a broad sweep rather than patching individual selectors.
+   Keeps the archival typography language while reducing visual sharpness. */
+
+.card { border-radius: var(--radius-md); }
+.card-image,
+.card-image img,
+.card-image-placeholder { border-radius: var(--radius-md) var(--radius-md) 0 0; }
+
+.modal { border-radius: var(--radius-lg); overflow: hidden; }
+.modal-image-frame img { border-radius: var(--radius-xs); }
+.modal-image img { border-radius: var(--radius-xs); }
+
+.form-input,
+.form-select,
+.form-textarea,
+.form-notes-prose { border-radius: var(--radius-sm); }
+
+.form-repeatable > div,
+.form-repeatable-item { border-radius: var(--radius-sm); }
+
+.btn,
+.btn-small,
+.btn-filled,
+.modal-close,
+button.btn,
+button.btn-small,
+.toolbar button,
+.toolbar .btn-primary,
+.image-action-row button,
+.image-action-row label > span {
+  border-radius: var(--radius-sm);
+}
+
+.card-badge,
+.tag,
+.facet-chip {
+  border-radius: 999px; /* pill shape for tag/chip elements */
+}
+
+/* Subtler focus ring — less jarring than a hard border flip */
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus,
+.form-notes-prose:focus {
+  border-color: var(--ink-soft);
+  box-shadow: 0 0 0 3px rgba(139, 46, 31, 0.08);
+}
+
+/* Slightly softer rule lines between modal sections */
+.modal-section {
+  border-bottom: 1px solid rgba(201, 190, 166, 0.5);
+}
+.modal-header {
+  border-bottom: 1px solid rgba(201, 190, 166, 0.5);
+}
+
+/* ---------- Card tag pile (tumblr-style bottom-of-card tags) ---------- */
+
+.card-tagpile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(201, 190, 166, 0.6);
+  line-height: 1.4;
+}
+
+.tagchip {
+  background: transparent;
+  border: none;
+  padding: 2px 8px;
+  font-family: var(--serif);
+  font-size: 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  line-height: 1.5;
+}
+
+.tagchip:hover {
+  filter: brightness(0.92);
+}
+
+.tagchip-char {
+  background: rgba(139, 46, 31, 0.08);
+  color: var(--accent);
+}
+
+.tagchip-seq {
+  background: rgba(212, 168, 75, 0.14);
+  color: #8b6a1a;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+.tagchip-date {
+  background: rgba(74, 107, 58, 0.12);
+  color: #3b5a26;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.tagchip-tag {
+  background: rgba(107, 93, 79, 0.1);
+  color: var(--ink-soft);
 }

@@ -28,13 +28,6 @@ export function SheetCard({
   onSelectToggle,
 }: Props) {
   const imageSrc = sheet.image_file ? `${imageBase}${sheet.image_file}` : '';
-  const year = sheet.date_on_sheet?.slice(0, 4);
-  const characterSummary =
-    sheet.characters.length === 0
-      ? '—'
-      : sheet.characters.length === 1
-      ? sheet.characters[0]
-      : `${sheet.characters[0]} +${sheet.characters.length - 1}`;
   const tier = resolutionTier(sheet.image_width, sheet.image_height);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -345,34 +338,82 @@ export function SheetCard({
             <em style={{ color: 'var(--ink-faded)' }}>Untitled</em>
           )}
         </h3>
-        <div className="card-meta">
-          {year && <span>{year}</span>}
-          <span>{characterSummary}</span>
-          {sheet.sequence_association && (() => {
-            const parts = formatSequenceParts(sheet.sequence_association);
-            return (
-              <span>
-                ·{' '}
-                {parts.number && (
-                  <span
-                    style={{
-                      fontFamily: 'var(--mono)',
-                      letterSpacing: '0.02em',
-                    }}
-                  >
-                    SQ {parts.number}
-                  </span>
-                )}
-                {parts.rest && (
-                  <span style={{ fontStyle: 'italic', marginLeft: 4 }}>
-                    {parts.rest}
-                  </span>
-                )}
-              </span>
-            );
-          })()}
-        </div>
+        <TagPile sheet={sheet} />
       </div>
+    </div>
+  );
+}
+
+// Bottom-of-card tag pile. Characters, sequence, year, and free-form tags
+// get shown as colored chips, color-coded by type. Clicking a chip
+// dispatches a `filter:set` CustomEvent that App.tsx listens for and
+// applies to the archive view — keeps the component decoupled from the
+// filter state.
+function TagPile({ sheet }: { sheet: ModelSheet }) {
+  const year = sheet.date_on_sheet?.slice(0, 4);
+  const seqParts = sheet.sequence_association
+    ? formatSequenceParts(sheet.sequence_association)
+    : null;
+
+  const apply = (e: React.MouseEvent, key: string, value: string) => {
+    e.stopPropagation();
+    window.dispatchEvent(
+      new CustomEvent('filter:set', { detail: { key, value } })
+    );
+  };
+
+  // Nothing to show — skip the row entirely
+  if (
+    !year &&
+    sheet.characters.length === 0 &&
+    !seqParts &&
+    sheet.tags.length === 0
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="card-tagpile">
+      {sheet.characters.map((c) => (
+        <button
+          key={`char-${c}`}
+          className="tagchip tagchip-char"
+          onClick={(e) => apply(e, 'character', c)}
+          title={`Filter by character: ${c}`}
+        >
+          {c}
+        </button>
+      ))}
+      {seqParts && seqParts.number && (
+        <button
+          className="tagchip tagchip-seq"
+          onClick={(e) =>
+            apply(e, 'sequence_association', sheet.sequence_association!)
+          }
+          title="Filter by sequence"
+        >
+          SQ {seqParts.number}
+        </button>
+      )}
+      {year && (
+        <button
+          className="tagchip tagchip-date"
+          onClick={(e) => apply(e, 'year', year)}
+          title={`Filter by year: ${year}`}
+        >
+          {year}
+        </button>
+      )}
+      {sheet.tags.map((t) => (
+        <button
+          key={`tag-${t}`}
+          className="tagchip tagchip-tag"
+          onClick={(e) => apply(e, 'tag', t)}
+          title={`Filter by tag: ${t}`}
+        >
+          {t}
+        </button>
+      ))}
     </div>
   );
 }

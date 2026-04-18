@@ -271,6 +271,34 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.sheets.length]);
 
+  // Tag-pile chips dispatch `filter:set` CustomEvents when clicked.
+  // Handle them here by mapping the detail key to the appropriate filter
+  // field. Keeps SheetCard decoupled from filter state.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ key: string; value: string }>;
+      const { key, value } = ce.detail || ({} as any);
+      if (!key || !value) return;
+      setFilters((f) => {
+        switch (key) {
+          case 'character':
+            return { ...f, character: value };
+          case 'tag':
+            return { ...f, tag: value };
+          case 'sequence_association':
+            return { ...f, sequence_association: value };
+          case 'year':
+            // no dedicated year filter — route to search instead
+            return { ...f, search: value };
+          default:
+            return f;
+        }
+      });
+    };
+    window.addEventListener('filter:set', handler);
+    return () => window.removeEventListener('filter:set', handler);
+  }, []);
+
   const filtered = useMemo(() => {
     if (!data) return [];
     let list = data.sheets.slice();
