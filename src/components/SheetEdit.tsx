@@ -5,7 +5,6 @@ import type {
   PublishedReference,
   ImageSourceType,
   RarityLevel,
-  Confidence,
   DatePrecision,
   WebOccurrenceReading,
   ProductionStamp,
@@ -752,22 +751,6 @@ export function SheetEdit({
                   e.g., "PROD 2003 SEQ 4.2 SCENE 50" lower right. Usually on
                   production drawings / cels, rarely on Character Model sheets.
                 </span>
-              </div>
-
-              <div className="form-field">
-                <label className="form-label">Confidence</label>
-                <select
-                  className="form-select"
-                  value={draft.confidence}
-                  onChange={(e) =>
-                    update('confidence', e.target.value as Confidence)
-                  }
-                >
-                  <option value="high">High</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Low</option>
-                  <option value="unverified">Unverified</option>
-                </select>
               </div>
 
               <div className="form-field">

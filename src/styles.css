@@ -562,6 +562,16 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   gap: 18px;
 }
 
+/* Default image sizing for any .modal-image > img that's NOT wrapped in
+   .modal-image-frame (detail view uses bare <img>, edit view wraps in frame). */
+.modal-image img {
+  max-width: 100%;
+  max-height: 56vh;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
 /* Pin-dotted photostat look — tiny dark dots at corners evoke
    how these sheets were literally pinned to studio boards. Kept
    subtle (35% opacity, 5px diameter) so they register only on close

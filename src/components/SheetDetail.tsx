@@ -263,15 +263,12 @@ export function SheetDetail({
                     })()}
                   />
                 )}
-                {sheet.department && (
-                  <Field label="Department" value={sheet.department} />
-                )}
                 {sheet.artist && <Field label="Artist" value={sheet.artist} />}
               </dl>
             </div>
 
             <div className="modal-section">
-              <div className="modal-section-label">Dates & Approvals</div>
+              <div className="modal-section-label">Date</div>
               <dl>
                 <Field
                   label="Date on sheet"
@@ -290,16 +287,6 @@ export function SheetDetail({
                           ({sheet.date_precision})
                         </span>
                       </>
-                    ) : (
-                      <em style={{ color: 'var(--ink-faded)' }}>none</em>
-                    )
-                  }
-                />
-                <Field
-                  label="Approvals"
-                  value={
-                    sheet.approvals.length ? (
-                      sheet.approvals.join(', ')
                     ) : (
                       <em style={{ color: 'var(--ink-faded)' }}>none</em>
                     )
@@ -462,9 +449,6 @@ export function SheetDetail({
 
             <div className="modal-section">
               <div className="modal-section-label">Provenance</div>
-              <dl>
-                <Field label="Confidence" value={sheet.confidence} />
-              </dl>
               {sheet.image_sources.length > 0 && (
                 <>
                   <div

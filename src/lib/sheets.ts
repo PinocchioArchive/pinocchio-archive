@@ -2,7 +2,6 @@ import type {
   ArchiveData,
   ModelSheet,
   DatePrecision,
-  Confidence,
 } from '../types/schema';
 
 // Parses "M174-A" into { prefix: "M", numeric: 174, suffix: "A" }.
@@ -171,7 +170,6 @@ export function makeEmptySheet(
       institutional: 'unknown',
       iconographic: 'unknown',
     },
-    confidence: 'unverified' as Confidence,
     needs_research: true, // default so new records go onto the research queue
     tags: [],
     notes: '',
@@ -296,7 +294,6 @@ export function looksIncomplete(sheet: ModelSheet): boolean {
   return (
     !sheet.title ||
     sheet.characters.length === 0 ||
-    !sheet.date_on_sheet ||
-    sheet.confidence === 'unverified'
+    !sheet.date_on_sheet
   );
 }

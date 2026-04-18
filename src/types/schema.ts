@@ -128,7 +128,6 @@ export interface ModelSheet {
     institutional: RarityLevel;
     iconographic: RarityLevel;
   };
-  confidence: Confidence;
   needs_research: boolean;
   tags: string[];
   notes: string;
