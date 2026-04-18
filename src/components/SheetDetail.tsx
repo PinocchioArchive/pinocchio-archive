@@ -23,6 +23,9 @@ interface Props {
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  // Close the modal and scroll to this sheet's card in the grid,
+  // switching sort to "Sheet Number" so neighboring sheets are visible.
+  onFocusInContext?: () => void;
 }
 
 function Field({
@@ -52,6 +55,7 @@ export function SheetDetail({
   onClose,
   onEdit,
   onDelete,
+  onFocusInContext,
 }: Props) {
   const imageSrc = sheet.image_file ? `${imageBase}${sheet.image_file}` : '';
   const publicImageUrl = sheet.image_file
@@ -152,7 +156,18 @@ export function SheetDetail({
           </div>
           <div className="modal-meta">
             <div className="modal-header">
-              <div className="modal-id">{sheet.id}</div>
+              {onFocusInContext ? (
+                <button
+                  type="button"
+                  className="modal-id modal-id-button"
+                  onClick={onFocusInContext}
+                  title="See this sheet in context among its neighbors"
+                >
+                  {sheet.id}
+                </button>
+              ) : (
+                <div className="modal-id">{sheet.id}</div>
+              )}
               <h1 className="modal-title">
                 {sheet.title || (
                   <span
@@ -185,98 +200,76 @@ export function SheetDetail({
               })()}
             </div>
 
-            <div className="modal-section">
-              <div className="modal-section-label">Content</div>
-              <dl>
-                <Field
-                  label="Characters"
-                  value={
-                    sheet.characters.length ? (
-                      <div className="tag-list">
-                        {sheet.characters.map((c) => (
-                          <span key={c} className="tag">
-                            {c}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <em style={{ color: 'var(--ink-faded)' }}>
-                        none recorded
-                      </em>
-                    )
-                  }
-                />
-                {sheet.sequence_association && (
-                  <Field
-                    label="Sequence"
-                    value={(() => {
-                      const parts = formatSequenceParts(
-                        sheet.sequence_association
-                      );
-                      return (
-                        <>
-                          {parts.number && (
-                            <span
-                              style={{
-                                fontFamily: 'var(--mono)',
-                                letterSpacing: '0.02em',
-                              }}
-                            >
-                              [SQ {parts.number}]
+            {(sheet.characters.length > 0 ||
+              sheet.sequence_association ||
+              sheet.artist) && (
+              <div className="modal-section">
+                <div className="modal-section-label">Content</div>
+                <dl>
+                  {sheet.characters.length > 0 && (
+                    <Field
+                      label="Characters"
+                      value={
+                        <div className="tag-list">
+                          {sheet.characters.map((c) => (
+                            <span key={c} className="tag">
+                              {c}
                             </span>
-                          )}
-                          {parts.rest && (
-                            <span
-                              style={{ fontStyle: 'italic', marginLeft: 6 }}
-                            >
-                              ({parts.rest})
-                            </span>
-                          )}
-                          {!parts.number && !parts.rest && (
-                            <em style={{ color: 'var(--ink-faded)' }}>
-                              empty
-                            </em>
-                          )}
-                          {sheet.sequence_association_confidence && (
-                            <span
-                              style={{
-                                fontFamily: 'var(--mono)',
-                                fontSize: 9,
-                                letterSpacing: '0.1em',
-                                textTransform: 'uppercase',
-                                color:
-                                  sheet.sequence_association_confidence ===
-                                  'high'
-                                    ? 'var(--success)'
-                                    : sheet.sequence_association_confidence ===
-                                      'low'
-                                    ? 'var(--ink-faded)'
-                                    : 'var(--warn)',
-                                marginLeft: 8,
-                                padding: '1px 6px',
-                                border: `1px solid currentColor`,
-                              }}
-                              title="Scholarly confidence in this sequence identification"
-                            >
-                              {sheet.sequence_association_confidence}
-                            </span>
-                          )}
-                        </>
-                      );
-                    })()}
-                  />
-                )}
-                {sheet.artist && <Field label="Artist" value={sheet.artist} />}
-              </dl>
-            </div>
+                          ))}
+                        </div>
+                      }
+                    />
+                  )}
+                  {sheet.sequence_association && (
+                    <Field
+                      label="Sequence"
+                      value={(() => {
+                        const parts = formatSequenceParts(
+                          sheet.sequence_association
+                        );
+                        return (
+                          <>
+                            {parts.number && (
+                              <span
+                                style={{
+                                  fontFamily: 'var(--mono)',
+                                  letterSpacing: '0.02em',
+                                }}
+                              >
+                                [SQ {parts.number}]
+                              </span>
+                            )}
+                            {parts.rest && (
+                              <span
+                                style={{ fontStyle: 'italic', marginLeft: 6 }}
+                              >
+                                ({parts.rest})
+                              </span>
+                            )}
+                            {!parts.number && !parts.rest && (
+                              <em style={{ color: 'var(--ink-faded)' }}>
+                                empty
+                              </em>
+                            )}
+                          </>
+                        );
+                      })()}
+                    />
+                  )}
+                  {sheet.artist && (
+                    <Field label="Artist" value={sheet.artist} />
+                  )}
+                </dl>
+              </div>
+            )}
 
-            <div className="modal-section">
-              <div className="modal-section-label">Date</div>
-              <dl>
-                <Field
-                  label="Date on sheet"
-                  value={
-                    sheet.date_on_sheet ? (
+            {sheet.date_on_sheet && (
+              <div className="modal-section">
+                <div className="modal-section-label">Date</div>
+                <dl>
+                  <Field
+                    label="Date on sheet"
+                    value={
                       <>
                         {sheet.date_on_sheet}
                         {sheet.date_precision !== 'unknown' && (
@@ -292,13 +285,11 @@ export function SheetDetail({
                           </span>
                         )}
                       </>
-                    ) : (
-                      <em style={{ color: 'var(--ink-faded)' }}>none</em>
-                    )
-                  }
-                />
-              </dl>
-            </div>
+                    }
+                  />
+                </dl>
+              </div>
+            )}
 
             {sheet.production_stamps.length > 0 && (
               <div className="modal-section">
@@ -458,9 +449,11 @@ export function SheetDetail({
               </div>
             </div>
 
-            <div className="modal-section">
-              <div className="modal-section-label">Provenance</div>
-              {sheet.image_sources.length > 0 && (
+            {(sheet.image_sources.length > 0 ||
+              sheet.published_references.length > 0) && (
+              <div className="modal-section">
+                <div className="modal-section-label">Provenance</div>
+                {sheet.image_sources.length > 0 && (
                 <>
                   <div
                     style={{
@@ -645,7 +638,8 @@ export function SheetDetail({
                   </ul>
                 </>
               )}
-            </div>
+              </div>
+            )}
 
             {(() => {
               // Hide rarity cells that haven't been explicitly set.
@@ -772,18 +766,13 @@ export function SheetDetail({
 
             <div className="modal-actions">
               {canEdit && (
-                <>
-                  <button
-                    className="btn btn-filled"
-                    onClick={onEdit}
-                    title="E"
-                  >
-                    Edit
-                  </button>
-                  <button className="btn btn-danger" onClick={onDelete}>
-                    Delete
-                  </button>
-                </>
+                <button
+                  className="btn btn-filled"
+                  onClick={onEdit}
+                  title="E"
+                >
+                  Edit
+                </button>
               )}
               <div style={{ flex: 1 }} />
               <div
@@ -796,6 +785,16 @@ export function SheetDetail({
               >
                 Updated {sheet.updated_at.slice(0, 10)}
               </div>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="btn-delete-muted"
+                  title="Delete this record"
+                >
+                  Delete record…
+                </button>
+              )}
             </div>
           </div>
         </div>

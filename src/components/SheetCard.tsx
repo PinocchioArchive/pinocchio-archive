@@ -80,7 +80,7 @@ export function SheetCard({
           title={
             memberCount > 0
               ? `In ${memberCount} list${memberCount === 1 ? '' : 's'}`
-              : 'Add to a list'
+              : 'View / add to lists'
           }
           style={{
             width: 22,
@@ -238,6 +238,7 @@ export function SheetCard({
   return (
     <div
       className="card"
+      data-sheet-id={sheet.id}
       role="button"
       tabIndex={0}
       onClick={handleActivation}
@@ -342,7 +343,7 @@ export function SheetCard({
             ? 'Research pending — flagged or partial info'
             : 'Stub record — minimal info, needs significant research'
         }
-        aria-label={`Research status: ${researchStatus}`}
+        role="status"
       />
     </div>
   );
@@ -414,55 +415,60 @@ function TagPile({ sheet }: { sheet: ModelSheet }) {
     return null;
   }
 
+  const hasIdentityRow =
+    sheet.characters.length > 0 || !!seqParts || !!dateInfo;
+
   return (
     <>
-      <div className="card-tagpile">
-        {sheet.characters.map((c) => (
-          <button
-            key={`char-${c}`}
-            className="tagchip tagchip-char"
-            onClick={(e) => apply(e, 'character', c)}
-            title={`Filter by character: ${c}`}
-          >
-            <span className="tagchip-icon">@</span>
-            {c}
-          </button>
-        ))}
-        {seqParts && seqParts.number && (
-          <button
-            className="tagchip tagchip-seq"
-            onClick={(e) =>
-              apply(e, 'sequence_association', sheet.sequence_association!)
-            }
-            title="Filter by sequence"
-          >
-            <span className="tagchip-icon">§</span>
-            SQ {seqParts.number}
-          </button>
-        )}
-        {dateInfo && (
-          <button
-            className="tagchip tagchip-date"
-            onClick={(e) =>
-              apply(e, 'year', dateInfo.display.match(/\d{4}/)?.[0] || '')
-            }
-            title={`Filter by date: ${dateInfo.display}`}
-          >
-            <span className="tagchip-icon tagchip-icon-svg" aria-hidden="true">
-              <svg width="8" height="8" viewBox="0 0 8 8">
-                <rect x="0" y="0" width="3" height="3" />
-                <rect x="5" y="0" width="3" height="3" />
-                <rect x="0" y="5" width="3" height="3" />
-                <rect x="5" y="5" width="3" height="3" />
-              </svg>
-            </span>
-            {dateInfo.display}
-            {dateInfo.hint && (
-              <span className="tagchip-hint"> {dateInfo.hint}</span>
-            )}
-          </button>
-        )}
-      </div>
+      {hasIdentityRow && (
+        <div className="card-tagpile">
+          {sheet.characters.map((c) => (
+            <button
+              key={`char-${c}`}
+              className="tagchip tagchip-char"
+              onClick={(e) => apply(e, 'character', c)}
+              title={`Filter by character: ${c}`}
+            >
+              <span className="tagchip-icon">@</span>
+              {c}
+            </button>
+          ))}
+          {seqParts && seqParts.number && (
+            <button
+              className="tagchip tagchip-seq"
+              onClick={(e) =>
+                apply(e, 'sequence_association', sheet.sequence_association!)
+              }
+              title="Filter by sequence"
+            >
+              <span className="tagchip-icon">§</span>
+              SQ {seqParts.number}
+            </button>
+          )}
+          {dateInfo && (
+            <button
+              className="tagchip tagchip-date"
+              onClick={(e) =>
+                apply(e, 'year', dateInfo.display.match(/\d{4}/)?.[0] || '')
+              }
+              title={`Filter by date: ${dateInfo.display}`}
+            >
+              <span className="tagchip-icon tagchip-icon-svg" aria-hidden="true">
+                <svg width="8" height="8" viewBox="0 0 8 8">
+                  <rect x="0" y="0" width="3" height="3" />
+                  <rect x="5" y="0" width="3" height="3" />
+                  <rect x="0" y="5" width="3" height="3" />
+                  <rect x="5" y="5" width="3" height="3" />
+                </svg>
+              </span>
+              {dateInfo.display}
+              {dateInfo.hint && (
+                <span className="tagchip-hint"> {dateInfo.hint}</span>
+              )}
+            </button>
+          )}
+        </div>
+      )}
       {sheet.tags.length > 0 && (
         <div className="card-tagpile card-tagzone">
           {sheet.tags.map((t) => (

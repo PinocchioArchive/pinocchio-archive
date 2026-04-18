@@ -244,6 +244,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 .card {
   background: var(--paper);
   border: 1px solid rgba(201, 190, 166, 0.5);
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
   cursor: pointer;
@@ -253,6 +254,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   font-family: inherit;
   color: inherit;
   position: relative;
+  overflow: hidden;
 }
 
 .card:hover {
@@ -553,24 +555,47 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   color: var(--cream);
 }
 
-/* Close button gets contrast treatment when it sits on the navy masthead. */
+/* Close button — default styling assumes a paper background.
+   Override for modals that have the navy masthead treatment. */
 .modal-close {
   position: absolute;
   top: 14px;
   right: 16px;
-  background: transparent;
-  border: 1px solid rgba(239, 233, 216, 0.3);
-  width: 28px;
-  height: 28px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  width: 30px;
+  height: 30px;
   font-family: var(--mono);
   font-size: 16px;
-  color: var(--cream);
+  color: var(--ink-soft);
   z-index: 2;
   cursor: pointer;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 
-.modal-close:hover {
+.modal-close:hover,
+.modal-close:focus-visible {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+  outline: none;
+}
+
+/* When the modal has a navy masthead at the top, the close button sits
+   on dark navy for the first ~60px before scrolling. Use cream-on-navy
+   styling so the × reads on that backdrop. */
+.modal:has(.modal-masthead) .modal-close {
+  background: transparent;
+  border-color: rgba(239, 233, 216, 0.35);
+  color: var(--cream);
+}
+
+.modal:has(.modal-masthead) .modal-close:hover,
+.modal:has(.modal-masthead) .modal-close:focus-visible {
   background: var(--cream);
   color: var(--navy);
   border-color: var(--cream);
@@ -741,6 +766,27 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   margin-bottom: 10px;
 }
 
+/* Button variant — visually identical until hover, then gains
+   affordance to indicate it's clickable. Clicking closes the modal
+   and scrolls to this sheet in the grid view. */
+.modal-id-button {
+  border: 1px solid transparent;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.12s, border-color 0.12s, transform 0.08s;
+}
+
+.modal-id-button:hover,
+.modal-id-button:focus-visible {
+  background: rgba(139, 46, 31, 0.14);
+  border-color: rgba(139, 46, 31, 0.3);
+  outline: none;
+}
+
+.modal-id-button:active {
+  transform: scale(0.97);
+}
+
 .modal-title {
   font-family: var(--serif);
   font-weight: 400;
@@ -759,13 +805,13 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   letter-spacing: 0;
   text-transform: none;
   color: var(--ink-soft);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .modal-section {
-  padding-bottom: 18px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid rgba(201, 190, 166, 0.4);
+  padding-bottom: 12px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgba(201, 190, 166, 0.25);
 }
 
 .modal-section:last-of-type { border-bottom: none; }
@@ -1882,4 +1928,82 @@ button.btn-small,
   font-style: italic;
   font-size: 12px;
   color: var(--ink-faded);
+}
+
+/* Muted "Delete record…" action — pushed far right in detail-view
+   actions row, styled as plain text until hovered. Destructive styling
+   reveals on hover/focus so the user has a clear visual moment before
+   they click, but the button doesn't scream "click me" on the page.
+   A confirmation dialog still guards the actual deletion. */
+.btn-delete-muted {
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  font-family: var(--serif);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-faded);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s, color 0.12s;
+}
+
+.btn-delete-muted:hover,
+.btn-delete-muted:focus-visible {
+  background: rgba(139, 46, 31, 0.08);
+  color: var(--error);
+  outline: none;
+}
+
+/* Keyboard shortcut hint — pinned to the bottom-right corner.
+   Kept small and muted but legible. Hidden under 900px wide, since
+   shortcut hints aren't useful on touch/mobile anyway and the
+   fixed-position footer overlaps content on narrow viewports. */
+.keyboard-hint {
+  position: fixed;
+  bottom: 14px;
+  right: 18px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-faded);
+  letter-spacing: 0.03em;
+  text-align: right;
+  line-height: 1.6;
+  pointer-events: none;
+  user-select: none;
+  background: rgba(244, 239, 230, 0.8);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(2px);
+}
+
+@media (max-width: 900px) {
+  .keyboard-hint { display: none; }
+}
+
+/* Pulse animation — briefly highlights a card that was scrolled to via
+   "see in context" (clicking a sheet ID in detail view). Warm amber
+   glow that fades out over ~1.2s. Stays additive so focus outlines
+   and selection outlines still work during the animation. */
+@keyframes sheet-pulse-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(212, 168, 75, 0.6),
+                0 8px 24px rgba(26, 23, 19, 0.1);
+  }
+  40% {
+    box-shadow: 0 0 0 6px rgba(212, 168, 75, 0.25),
+                0 8px 24px rgba(26, 23, 19, 0.1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(212, 168, 75, 0),
+                0 8px 24px rgba(26, 23, 19, 0.1);
+  }
+}
+
+.sheet-pulse {
+  animation: sheet-pulse-glow 1.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-pulse { animation: none; }
 }

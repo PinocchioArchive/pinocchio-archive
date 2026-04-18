@@ -211,11 +211,10 @@ export function SheetEdit({
       }
       // Esc = cancel
       if (e.key === 'Escape') {
-        const target = e.target as HTMLElement;
-        // Let autocomplete/tag dropdowns close first
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
-          return;
-        }
+        // Autocomplete and tag inputs stop propagation when their
+        // dropdown is open, so Escape there closes the dropdown first
+        // and doesn't reach this handler. If we do see Escape here,
+        // nothing is intercepting it — cancel the form.
         onCancel();
       }
     };
@@ -638,69 +637,6 @@ export function SheetEdit({
                   suggestions={vocab.sequences}
                   placeholder="e.g., 1.5 or 4.2"
                 />
-                {draft.sequence_association && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 4,
-                      marginTop: 4,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: 'var(--mono)',
-                        fontSize: 9,
-                        letterSpacing: '0.1em',
-                        textTransform: 'uppercase',
-                        color: 'var(--ink-faded)',
-                      }}
-                    >
-                      Confidence:
-                    </span>
-                    {(['high', 'medium', 'low', 'unverified'] as const).map(
-                      (c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() =>
-                            update('sequence_association_confidence', c)
-                          }
-                          style={{
-                            fontFamily: 'var(--mono)',
-                            fontSize: 9,
-                            letterSpacing: '0.1em',
-                            textTransform: 'uppercase',
-                            padding: '1px 6px',
-                            border: `1px solid ${
-                              (draft.sequence_association_confidence ||
-                                'medium') === c
-                                ? 'var(--ink)'
-                                : 'var(--rule)'
-                            }`,
-                            background:
-                              (draft.sequence_association_confidence ||
-                                'medium') === c
-                                ? 'var(--ink)'
-                                : 'var(--paper)',
-                            color:
-                              (draft.sequence_association_confidence ||
-                                'medium') === c
-                                ? 'var(--paper)'
-                                : 'var(--ink-soft)',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {c}
-                        </button>
-                      )
-                    )}
-                  </div>
-                )}
-                <span className="form-hint">
-                  Usually inferred, not stamped. "High" = primary-source
-                  confirmed (e.g., Kaufman); "Low" = working hypothesis.
-                </span>
               </div>
 
               <div className="form-field">

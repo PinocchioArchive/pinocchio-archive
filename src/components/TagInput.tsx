@@ -88,7 +88,13 @@ export function TagInput({
       e.preventDefault();
       setActiveIdx((i) => Math.max(i - 1, -1));
     } else if (e.key === 'Escape') {
-      setOpen(false);
+      // Mirror AutocompleteInput: swallow Escape only when the dropdown
+      // was actually open, so an Escape in a closed state bubbles up to
+      // the enclosing modal for cancel.
+      if (open) {
+        e.stopPropagation();
+        setOpen(false);
+      }
     }
   };
 

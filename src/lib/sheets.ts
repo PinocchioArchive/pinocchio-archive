@@ -301,23 +301,20 @@ export function looksIncomplete(sheet: ModelSheet): boolean {
 // ResearchStatus represents how complete a sheet's scholarly record is.
 // - 'complete': most scholarly fields populated AND not flagged for research
 // - 'some':     partial info, OR explicitly flagged for more research
-// - 'stub':     minimal info, very few fields populated
+// - 'stub':     minimal info — barely-started record
 //
-// Used to drive the colored status dot on cards and in the detail view.
-// Green (complete) means "I'm satisfied with this record." Yellow (some)
-// means "more work to do, either because fields are missing or because
-// I've flagged this for deeper investigation." Red (stub) means "this
-// record is barely started — minimal signals present."
+// Calibrated for Character Model Department sheets specifically. These
+// sheets often deliberately lack "characters" (they predate character
+// design lock) and predate formal sequence stamping, so the heuristic
+// treats tags, notes, and general content as real scholarly signals
+// rather than only counting the rigid production-metadata fields.
 export type ResearchStatus = 'complete' | 'some' | 'stub';
 
 export function computeResearchStatus(sheet: ModelSheet): ResearchStatus {
-  // Count key scholarly signals present. Each contributes one point.
-  // We deliberately don't weight these — a simple count is easier to
-  // reason about and tune. The signals are chosen because each one
-  // represents a distinct scholarly contribution: identification
-  // (title/characters), dating, production context (sequence), physical
-  // provenance (verified archive), attribution (artist/approvals),
-  // and scholarly context (references/notes).
+  // Eight signals — each present adds one point. Chosen so that a
+  // typical Character Model Department sheet with title + date +
+  // sequence + some tags counts comfortably in the "some" band even
+  // without characters or archive verification.
   let signals = 0;
   if (sheet.title && sheet.title.trim()) signals++;
   if (sheet.characters.length >= 1) signals++;
@@ -328,25 +325,23 @@ export function computeResearchStatus(sheet: ModelSheet): ResearchStatus {
   )
     signals++;
   if (sheet.sequence_association && sheet.sequence_association.trim()) signals++;
-  if (
-    sheet.image_sources.some((s) => s.archive_status === 'verified')
-  )
+  if (sheet.image_sources.some((s) => s.archive_status === 'verified')) signals++;
+  if ((sheet.artist && sheet.artist.trim()) || sheet.approvals.length >= 1)
     signals++;
-  if (
-    (sheet.artist && sheet.artist.trim()) ||
-    sheet.approvals.length >= 1
-  )
-    signals++;
-  if (sheet.published_references.length >= 1 || (sheet.notes && sheet.notes.trim()))
-    signals++;
+  if (sheet.published_references.length >= 1) signals++;
+  if ((sheet.notes && sheet.notes.trim()) || sheet.tags.length >= 1) signals++;
 
-  // Explicit override: if needs_research is set, never show green. Still
-  // allow red if the record is genuinely bare.
+  // Explicit override: if needs_research is flagged, never show green.
   if (sheet.needs_research) {
-    return signals <= 3 ? 'stub' : 'some';
+    return signals <= 1 ? 'stub' : 'some';
   }
 
-  if (signals >= 6) return 'complete';
-  if (signals >= 3) return 'some';
+  // Thresholds tuned so:
+  //   - A record with title + sequence + date + tags (4 signals) → 'some'
+  //   - A record with just a title and nothing else (1 signal) → 'stub'
+  //   - A truly empty record → 'stub'
+  //   - A record with most fields populated (5+) → 'complete'
+  if (signals >= 5) return 'complete';
+  if (signals >= 2) return 'some';
   return 'stub';
 }
