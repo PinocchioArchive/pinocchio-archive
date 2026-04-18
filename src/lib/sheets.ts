@@ -409,3 +409,160 @@ export function findSeriesMembers(
   if (members.length <= 1) return [];
   return members.slice().sort(compareSheets);
 }
+
+// A placeholder for a sheet that's expected to exist in a series (based on
+// the alphabet sequence of its siblings) but isn't present in the archive.
+// Shown as a ghost slot in the series strip so researchers can see gaps in
+// their record of a physical series.
+export interface SeriesGap {
+  kind: 'gap';
+  // The ID that would fill this slot, e.g., "M217-B" when M217-A and
+  // M217-C are present. Constructed from the shared prefix + numeric
+  // base + the missing suffix letter.
+  id: string;
+  prefix: string;
+  numeric: number;
+  suffix: string;
+}
+
+// Discriminated union: present sheet OR missing-slot placeholder.
+export type SeriesSlot =
+  | { kind: 'sheet'; sheet: ModelSheet }
+  | SeriesGap;
+
+// Like findSeriesMembers but interleaves ghost gap placeholders for
+// missing suffix letters in the alphabetic range covered by the series.
+//
+// Example: given M217, M217-A, M217-C in the archive, returns
+//   [sheet M217, sheet M217-A, gap M217-B, sheet M217-C]
+//
+// Does NOT speculate past the highest known suffix (so M217-D is not
+// shown). Does NOT insert a placeholder for the bare numeric base if
+// it's missing (M217 without suffix — some series genuinely skip this
+// and we don't want to invent ghosts there).
+//
+// Returns an empty array if the sheet has no series to speak of.
+export function findSeriesWithGaps(
+  sheet: ModelSheet,
+  allSheets: ModelSheet[]
+): SeriesSlot[] {
+  const members = findSeriesMembers(sheet, allSheets);
+  if (members.length === 0) return [];
+
+  // Pull out the ones with alphabetic suffixes (A, B, C…) separately
+  // from any bare-base member (empty suffix). Gap detection only
+  // applies inside the alphabet range.
+  const withSuffix = members.filter((m) => m.sheet_number_suffix !== '');
+  const bareBase = members.filter((m) => m.sheet_number_suffix === '');
+
+  const slots: SeriesSlot[] = [];
+  // Bare base (if present) comes first in the strip.
+  for (const m of bareBase) {
+    slots.push({ kind: 'sheet', sheet: m });
+  }
+
+  if (withSuffix.length === 0) return slots;
+
+  // Build a lookup by suffix (uppercase for comparison safety) so we
+  // can detect gaps without quadratic scanning.
+  const bySuffix = new Map<string, ModelSheet>();
+  for (const m of withSuffix) {
+    bySuffix.set(m.sheet_number_suffix.toUpperCase(), m);
+  }
+
+  // Find the alphabet range. We use character codes on the first
+  // letter of the suffix — works for the typical single-letter case
+  // (A–Z) and degrades gracefully for anything weird (returns just
+  // the members we have with no invented gaps between them).
+  const suffixCodes = withSuffix
+    .map((m) => m.sheet_number_suffix.toUpperCase().charCodeAt(0))
+    .filter((c) => c >= 65 && c <= 90); // A–Z
+  if (suffixCodes.length === 0) {
+    // Non-alphabetic suffixes — can't reliably detect gaps, so just
+    // return the members as-is.
+    for (const m of withSuffix) slots.push({ kind: 'sheet', sheet: m });
+    return slots;
+  }
+  const minCode = Math.min(...suffixCodes);
+  const maxCode = Math.max(...suffixCodes);
+
+  // Walk the alphabet from lowest to highest suffix, emitting either
+  // the real sheet or a gap placeholder for each slot in between.
+  for (let code = minCode; code <= maxCode; code++) {
+    const letter = String.fromCharCode(code);
+    const found = bySuffix.get(letter);
+    if (found) {
+      slots.push({ kind: 'sheet', sheet: found });
+    } else {
+      slots.push({
+        kind: 'gap',
+        id: `${sheet.sheet_number_prefix}${sheet.sheet_number_numeric}-${letter}`,
+        prefix: sheet.sheet_number_prefix,
+        numeric: sheet.sheet_number_numeric,
+        suffix: letter,
+      });
+    }
+  }
+
+  return slots;
+}
+
+// Finds gaps in the numeric base sequence across the entire archive.
+// Returns ranges of missing numeric bases, bounded by the lowest and
+// highest numeric present. Scope = a single prefix (usually "M"); if
+// your collection mixes prefixes, call this once per prefix.
+//
+// Example: given sheets M215, M217, M218, M220, returns
+//   [ { prefix: "M", from: 216, to: 216 },
+//     { prefix: "M", from: 219, to: 219 } ]
+//
+// Consecutive missing numbers collapse into a single range so a huge
+// unexplored territory (M100–M150) shows as one entry instead of 50.
+//
+// Scholarly premise: for this collection, the researcher states that
+// the numeric sequence is known to be contiguous — every missing
+// number represents a physical sheet that existed in the Character
+// Model Department's numbering, not an intentional skip.
+export interface NumericRangeGap {
+  prefix: string;
+  from: number; // inclusive
+  to: number;   // inclusive
+}
+
+export function findNumericGaps(
+  allSheets: ModelSheet[],
+  prefix: string = 'M'
+): NumericRangeGap[] {
+  const numerics = allSheets
+    .filter((s) => s.sheet_number_prefix === prefix && s.sheet_number_numeric > 0)
+    .map((s) => s.sheet_number_numeric);
+  if (numerics.length === 0) return [];
+  const present = new Set(numerics);
+  const lo = Math.min(...numerics);
+  const hi = Math.max(...numerics);
+
+  const gaps: NumericRangeGap[] = [];
+  let runStart: number | null = null;
+  for (let n = lo; n <= hi; n++) {
+    if (!present.has(n)) {
+      if (runStart === null) runStart = n;
+    } else if (runStart !== null) {
+      gaps.push({ prefix, from: runStart, to: n - 1 });
+      runStart = null;
+    }
+  }
+  if (runStart !== null) {
+    // Shouldn't happen since `hi` is present, but belt-and-suspenders.
+    gaps.push({ prefix, from: runStart, to: hi });
+  }
+  return gaps;
+}
+
+// Returns records that exist in the archive but lack an attached image
+// file. These are "type C" gaps — different from series gaps: the
+// scholarly record is logged, but no visual reference is attached yet.
+export function findRecordsWithoutImages(
+  allSheets: ModelSheet[]
+): ModelSheet[] {
+  return allSheets.filter((s) => !s.image_file || !s.image_file.trim());
+}

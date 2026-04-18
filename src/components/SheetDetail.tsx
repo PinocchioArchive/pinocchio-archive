@@ -5,7 +5,7 @@ import {
   googleLensUrl,
   tineyeUrl,
 } from '../lib/image';
-import { computeResearchStatus } from '../lib/sheets';
+import { computeResearchStatus, type SeriesSlot } from '../lib/sheets';
 import {
   toggleSheetInList,
   createList,
@@ -26,11 +26,12 @@ interface Props {
   // Close the modal and scroll to this sheet's card in the grid,
   // switching sort to "Sheet Number" so neighboring sheets are visible.
   onFocusInContext?: () => void;
-  // Other sheets in the same numbered series (e.g., M217, M217-A, M217-B
-  // are all one series). Does NOT include the current sheet. When empty,
-  // the "Also in this series" strip is hidden entirely. Parent supplies
-  // this so the detail view doesn't need access to the full archive.
-  seriesMembers?: ModelSheet[];
+  // Other slots in the same numbered series (e.g., M217, M217-A, M217-B
+  // are all one series). A "slot" is either a real sheet or a ghost
+  // placeholder for a missing suffix letter. When empty, the strip is
+  // hidden entirely. Parent supplies this so the detail view doesn't
+  // need access to the full archive.
+  seriesSlots?: SeriesSlot[];
   // Called when the user clicks a sibling in the series strip. Parent
   // typically swaps the selected sheet to that sibling's id, causing
   // this modal to re-render with the new sheet.
@@ -65,7 +66,7 @@ export function SheetDetail({
   onEdit,
   onDelete,
   onFocusInContext,
-  seriesMembers,
+  seriesSlots,
   onSelectSibling,
 }: Props) {
   const imageSrc = sheet.image_file ? `${imageBase}${sheet.image_file}` : '';
@@ -201,13 +202,32 @@ export function SheetDetail({
                   </a>
                 </div>
               )}
-              {seriesMembers && seriesMembers.length > 0 && (
+              {seriesSlots && seriesSlots.length > 0 && (
                 <div className="series-strip">
                   <div className="series-strip-label">
                     Also in this series
                   </div>
                   <div className="series-strip-scroll">
-                    {seriesMembers.map((m) => {
+                    {seriesSlots.map((slot) => {
+                      if (slot.kind === 'gap') {
+                        return (
+                          <div
+                            key={`gap-${slot.id}`}
+                            className="series-strip-item series-strip-item-gap"
+                            title={`${slot.id} — not in archive. This suffix is between sheets that are present, so the sheet likely exists but hasn't been added.`}
+                          >
+                            <div className="series-strip-thumb series-strip-thumb-gap">
+                              <span className="series-strip-thumb-gap-mark">
+                                ?
+                              </span>
+                            </div>
+                            <div className="series-strip-id series-strip-id-gap">
+                              {slot.id}
+                            </div>
+                          </div>
+                        );
+                      }
+                      const m = slot.sheet;
                       const isCurrent = m.id === sheet.id;
                       const thumbSrc = m.image_file
                         ? `${imageBase}${m.image_file}`

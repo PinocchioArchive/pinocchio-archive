@@ -2214,3 +2214,43 @@ button.btn-small,
   color: var(--navy);
   font-weight: 600;
 }
+
+/* ---------- Series strip gaps (missing suffix slots) ---------- */
+/*
+ * A "gap" slot is shown where a suffix letter is missing between two
+ * present siblings (e.g., M217-B shown as a ghost when M217-A and
+ * M217-C are in the archive but M217-B is not). Styled as a dashed
+ * outline with a question-mark glyph to read as "slot awaiting a sheet"
+ * rather than any kind of error or action.
+ */
+
+.series-strip-item-gap {
+  /* Override the pointer from the base .series-strip-item — gaps
+     are informational, not interactive. */
+  cursor: default;
+}
+
+.series-strip-item-gap:hover .series-strip-thumb-gap {
+  /* No lift on hover — nothing to do. */
+  border-color: var(--rule);
+}
+
+.series-strip-thumb-gap {
+  border: 1px dashed var(--rule);
+  background: transparent;
+  box-shadow: none;
+}
+
+.series-strip-thumb-gap-mark {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-style: italic;
+  color: var(--ink-faded);
+  opacity: 0.6;
+}
+
+.series-strip-id-gap {
+  color: var(--ink-faded);
+  font-style: italic;
+  opacity: 0.75;
+}
