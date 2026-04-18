@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import type { ArchiveData, ModelSheet } from './types/schema';
 import {
   compareSheets,
   compareSheetsByCharacter,
   compareSheetsBySequence,
+  compareSheetsBySheetMark,
   extractVocabulary,
   extractSourceVocabulary,
   getRecentDefaults,
@@ -29,6 +30,9 @@ import { SheetEdit } from './components/SheetEdit';
 import { Settings } from './components/Settings';
 import { BulkImport } from './components/BulkImport';
 import { ManageLists } from './components/ManageLists';
+import { useDialog } from './components/Dialog';
+import { VocabularyHealth } from './components/VocabularyHealth';
+import { useVocabulary } from './components/VocabularyProvider';
 
 type SortMode =
   | 'number'
@@ -37,7 +41,8 @@ type SortMode =
   | 'updated'
   | 'created'
   | 'character'
-  | 'sequence';
+  | 'sequence'
+  | 'sheet_mark';
 type ViewMode = 'grid' | 'list' | 'by_character';
 
 const BASE = import.meta.env.BASE_URL || '/';
@@ -48,6 +53,7 @@ interface FilterState {
   sequence_association: string | null;
   character: string | null;
   tag: string | null;
+  sheetMark: string | null;
   needsResearch: boolean;
   listId: string | null; // filter to a specific user list (local storage)
   sort: SortMode;
@@ -61,6 +67,7 @@ function readFiltersFromUrl(): FilterState {
     sequence_association: params.get('seq'),
     character: params.get('char'),
     tag: params.get('tag'),
+    sheetMark: params.get('mark'),
     needsResearch: params.get('research') === '1',
     listId: params.get('list'),
     sort: (params.get('sort') as SortMode) || 'number',
@@ -74,6 +81,7 @@ function writeFiltersToUrl(f: FilterState) {
   if (f.sequence_association) params.set('seq', f.sequence_association);
   if (f.character) params.set('char', f.character);
   if (f.tag) params.set('tag', f.tag);
+  if (f.sheetMark) params.set('mark', f.sheetMark);
   if (f.needsResearch) params.set('research', '1');
   if (f.listId) params.set('list', f.listId);
   if (f.sort !== 'number') params.set('sort', f.sort);
@@ -93,6 +101,9 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [showManageLists, setShowManageLists] = useState(false);
+  const [showVocabularyHealth, setShowVocabularyHealth] = useState(false);
+  const { promptDialog, confirmDialog } = useDialog();
+  const vocabulary = useVocabulary();
   // Select mode toggles checkboxes on cards; in this mode clicking a card
   // toggles selection rather than opening the detail view. Used for
   // bulk "add to list" operations.
@@ -167,12 +178,22 @@ export default function App() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((raw) => setData(migrateArchive(raw)))
+      .then((raw) => {
+        const migrated = migrateArchive(raw);
+        setData(migrated);
+        // Seed the vocabulary from these sheets if vocabulary.json
+        // doesn't yet exist. Silent no-op if already seeded or if
+        // the user isn't authenticated.
+        void vocabulary.seedIfMissing(migrated.sheets);
+      })
       .catch((e) => {
         console.warn('Could not load sheets.json, starting empty:', e);
         setData({ schema_version: 5, sheets: [] });
         setLoadError(e.message);
       });
+    // Only run once on mount; vocabulary.seedIfMissing is stable enough
+    // that including it in deps would re-trigger the fetch unnecessarily.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-reverify pending Wayback captures when data loads. Runs in the
@@ -181,10 +202,13 @@ export default function App() {
   // commits a single batched update to avoid commit spam.
   useEffect(() => {
     if (!data) return;
-    // Find all pending sources across all sheets
+    // Find all pending sources across all sheets. Identify them by
+    // stable properties (sheet ID + source URL) rather than array
+    // indices — this way, if a sheet is deleted or reordered while
+    // reverify is in flight, we don't write to the wrong record.
     const pending: {
-      sheetIdx: number;
-      sourceIdx: number;
+      sheetId: string;
+      sourceUrl: string;
       src: {
         url?: string;
         archive_status?: 'not_attempted' | 'pending' | 'verified' | 'failed';
@@ -192,10 +216,10 @@ export default function App() {
         archive_url?: string;
       };
     }[] = [];
-    data.sheets.forEach((sheet, sheetIdx) => {
-      sheet.image_sources?.forEach((src, sourceIdx) => {
+    data.sheets.forEach((sheet) => {
+      sheet.image_sources?.forEach((src) => {
         if (src.archive_status === 'pending' && src.url) {
-          pending.push({ sheetIdx, sourceIdx, src });
+          pending.push({ sheetId: sheet.id, sourceUrl: src.url, src });
         }
       });
     });
@@ -210,31 +234,43 @@ export default function App() {
         `[Wayback reverify] Checking ${pending.length} pending source(s)…`
       );
       let anyChanged = false;
-      // Work from a snapshot — if the user edits during this, their edits
-      // will take precedence because we use functional setData updates.
-      for (const { sheetIdx, sourceIdx, src } of pending) {
+      for (const { sheetId, sourceUrl, src } of pending) {
         if (cancelled) return;
         try {
           const outcome = await reverifyPendingSource(src);
           if (!outcome || cancelled) continue;
           anyChanged = true;
-          // Functional update — preserves any user edits since load
+          // Functional update — finds the sheet+source by ID/URL at the
+          // moment the update runs, so concurrent edits or deletions
+          // don't corrupt unrelated records.
           setData((current) => {
             if (!current) return current;
-            const sheets = current.sheets.slice();
-            const sheet = sheets[sheetIdx];
-            if (!sheet) return current;
+            const sheetIdx = current.sheets.findIndex((s) => s.id === sheetId);
+            if (sheetIdx < 0) return current; // sheet was deleted
+            const sheet = current.sheets[sheetIdx];
+            const sourceIdx = (sheet.image_sources || []).findIndex(
+              (s) => s.url === sourceUrl
+            );
+            if (sourceIdx < 0) return current; // source was removed
             const sources = (sheet.image_sources || []).slice();
-            if (!sources[sourceIdx]) return current;
             // Only update if still pending — if user manually changed it,
             // respect that
             if (sources[sourceIdx].archive_status !== 'pending') return current;
+            // Preserve the reverify note if present. Append rather than
+            // overwrite so any note the user had typed stays visible too.
+            const existingNotes = sources[sourceIdx].notes || '';
+            const mergedNotes = outcome.note
+              ? existingNotes
+                ? `${existingNotes}\n\n[auto] ${outcome.note}`
+                : `[auto] ${outcome.note}`
+              : existingNotes;
             sources[sourceIdx] = {
               ...sources[sourceIdx],
               archive_status: outcome.archive_status,
               archive_url: outcome.archive_url || sources[sourceIdx].archive_url,
-              ...(outcome.note ? { notes: sources[sourceIdx].notes } : {}),
+              ...(outcome.note ? { notes: mergedNotes } : {}),
             };
+            const sheets = current.sheets.slice();
             sheets[sheetIdx] = { ...sheet, image_sources: sources };
             return { ...current, sheets };
           });
@@ -285,6 +321,8 @@ export default function App() {
             return { ...f, character: value };
           case 'tag':
             return { ...f, tag: value };
+          case 'sheet_mark':
+            return { ...f, sheetMark: value };
           case 'sequence_association':
             return { ...f, sequence_association: value };
           case 'year':
@@ -309,6 +347,12 @@ export default function App() {
     if (filters.character)
       list = list.filter((s) => s.characters.includes(filters.character!));
     if (filters.tag) list = list.filter((s) => s.tags.includes(filters.tag!));
+    if (filters.sheetMark)
+      list = list.filter((s) =>
+        (s.sheet_marks || []).some(
+          (m) => m.value === filters.sheetMark
+        )
+      );
     if (filters.listId) {
       // Re-read the specific list from localStorage so filter is fresh.
       const userLists = loadLists().lists;
@@ -333,7 +377,12 @@ export default function App() {
           (s.sequence_association || '').toLowerCase().includes(q) ||
           (s.notes || '').toLowerCase().includes(q) ||
           s.tags.some((t) => t.toLowerCase().includes(q)) ||
-          s.approvals.some((a) => a.toLowerCase().includes(q))
+          s.approvals.some((a) => a.toLowerCase().includes(q)) ||
+          (s.sheet_marks || []).some(
+            (m) =>
+              m.value.toLowerCase().includes(q) ||
+              (m.notes || '').toLowerCase().includes(q)
+          )
         );
       });
     }
@@ -360,6 +409,9 @@ export default function App() {
         break;
       case 'character':
         list.sort(compareSheetsByCharacter);
+        break;
+      case 'sheet_mark':
+        list.sort(compareSheetsBySheetMark);
         break;
     }
     return list;
@@ -457,10 +509,20 @@ export default function App() {
     ? data?.sheets.find((s) => s.id === editingId) || null
     : null;
 
-  const flashToast = (msg: string) => {
+  // Stores the active toast dismissal timer. Clearing the previous timer
+  // before starting a new one ensures rapid-succession toasts don't race:
+  // each new toast resets the 3.5s countdown, so you always see the
+  // latest message for its full duration.
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flashToast = useCallback((msg: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(msg);
-    setTimeout(() => setToast(null), 3500);
-  };
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 3500);
+  }, []);
 
   // Writes an updated archive. Commits via GitHub API if token present,
   // otherwise returns a downloadable JSON blob.
@@ -503,18 +565,22 @@ export default function App() {
     setData(nextData);
   };
 
-  const findNextIncomplete = (
+  const findNextIncompleteIn = (
+    sheets: ModelSheet[],
     excludingId: string | null
   ): ModelSheet | null => {
-    if (!data) return null;
-    const queue = data.sheets
-      .filter((s) => s.needs_research && s.id !== excludingId)
-      .sort((a, b) => b.created_at.localeCompare(a.created_at));
-    return queue[0] || null;
+    return (
+      sheets
+        .filter((s) => s.needs_research && s.id !== excludingId)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0] || null
+    );
   };
 
-  const handleSave = async (updated: ModelSheet, newImageFile?: File) => {
-    if (!data) return;
+  const handleSave = async (
+    updated: ModelSheet,
+    newImageFile?: File
+  ): Promise<ArchiveData | null> => {
+    if (!data) return null;
     let finalImageFile = updated.image_file;
     let imageCommit: { path: string; file: File } | undefined;
     if (newImageFile) {
@@ -537,17 +603,19 @@ export default function App() {
     setEditingId(null);
     setCreatingNew(false);
     setSelectedId(finalSheet.id);
+    return nextData;
   };
 
   const handleSaveAndNext = async (
     updated: ModelSheet,
     newImageFile?: File
   ) => {
-    await handleSave(updated, newImageFile);
-    // Use the data state *after* save by reading from the updated array.
-    // Since setData was called inside writeArchive, we compute the next
-    // incomplete from the just-saved state.
-    const next = findNextIncomplete(updated.id);
+    // Get the freshly-saved archive back rather than reading from the
+    // `data` state, which may not have flushed yet by the time we look
+    // up the next record.
+    const saved = await handleSave(updated, newImageFile);
+    if (!saved) return;
+    const next = findNextIncompleteIn(saved.sheets, updated.id);
     if (next) {
       setSelectedId(null);
       setEditingId(next.id);
@@ -559,12 +627,14 @@ export default function App() {
 
   const handleDelete = async (id: string) => {
     if (!data) return;
-    if (
-      !confirm(
-        `Delete record ${id}? The image file will remain in the repo.`
-      )
-    )
-      return;
+    const ok = await confirmDialog({
+      title: `Delete record ${id}?`,
+      message:
+        'The image file will remain in the repo, but the record itself will be removed. This cannot be undone from within the app.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     const nextData: ArchiveData = {
       ...data,
       sheets: data.sheets.filter((s) => s.id !== id),
@@ -573,6 +643,49 @@ export default function App() {
     flashToast(`Deleted ${id}`);
     setSelectedId(null);
   };
+
+  // Tracks a card to scroll into view + pulse-highlight on next render.
+  // Set by "focus in context" (clicking the sheet ID in detail view) and
+  // cleared once the scroll has happened. We use a ref-like state rather
+  // than imperative DOM work so React owns the timing.
+  const [pulseId, setPulseId] = useState<string | null>(null);
+
+  // Close detail, ensure sort is by sheet number (so the card is among
+  // its numerical neighbors), and schedule a scroll-and-pulse on the
+  // target card. No data is lost — filters/search stay as they were.
+  const handleFocusInContext = useCallback(
+    (id: string) => {
+      setSelectedId(null);
+      setFilters((f) => (f.sort === 'number' ? f : { ...f, sort: 'number' }));
+      setPulseId(id);
+    },
+    []
+  );
+
+  // When pulseId is set, wait for the next paint (so the card is in the
+  // DOM after any re-sort), then scroll it into view and trigger the
+  // pulse animation. Cleared after the animation duration so the class
+  // toggles reliably on repeat clicks.
+  useEffect(() => {
+    if (!pulseId) return;
+    const handle = requestAnimationFrame(() => {
+      const el = document.querySelector(
+        `[data-sheet-id="${CSS.escape(pulseId)}"]`
+      ) as HTMLElement | null;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.remove('sheet-pulse');
+        // Force reflow so re-adding the class restarts the animation
+        void el.offsetWidth;
+        el.classList.add('sheet-pulse');
+      }
+    });
+    const clearTimer = window.setTimeout(() => setPulseId(null), 1400);
+    return () => {
+      cancelAnimationFrame(handle);
+      window.clearTimeout(clearTimer);
+    };
+  }, [pulseId]);
 
   const handleBulkImport = async (
     items: Array<{ sheet: ModelSheet; file: File; extraction?: unknown }>
@@ -635,8 +748,8 @@ export default function App() {
       'title',
       'characters',
       'sequence_association',
-      'sequence_association_confidence',
       'production_stamps',
+      'sheet_marks',
       'date_on_sheet',
       'date_precision',
       'approvals',
@@ -668,13 +781,16 @@ export default function App() {
         })
         .filter(Boolean)
         .join('; ');
+      const marksStr = (s.sheet_marks || [])
+        .map((m) => (m.notes ? `${m.value} (${m.notes})` : m.value))
+        .join('; ');
       return [
         s.id,
         s.title,
         s.characters.join('; '),
         s.sequence_association || '',
-        s.sequence_association_confidence || '',
         stampsStr,
+        marksStr,
         s.date_on_sheet || '',
         s.date_precision,
         s.approvals.join('; '),
@@ -759,6 +875,7 @@ export default function App() {
         else if (creatingNew) setCreatingNew(false);
         else if (showSettings) handleCloseSettings();
         else if (showManageLists) setShowManageLists(false);
+        else if (showVocabularyHealth) setShowVocabularyHealth(false);
         else if (showBulk) setShowBulk(false);
       },
     },
@@ -782,6 +899,7 @@ export default function App() {
     filters.sequence_association ||
     filters.character ||
     filters.tag ||
+    filters.sheetMark ||
     filters.needsResearch ||
     filters.listId;
 
@@ -792,6 +910,7 @@ export default function App() {
       sequence_association: null,
       character: null,
       tag: null,
+      sheetMark: null,
       needsResearch: false,
       listId: null,
     }));
@@ -855,6 +974,36 @@ export default function App() {
             <button onClick={handleExportCSV} title="Export filtered CSV">
               Export CSV
             </button>
+            {isAuthenticated && (
+              <button
+                onClick={() => setShowVocabularyHealth(true)}
+                title="Vocabulary health check"
+              >
+                Vocabulary
+                {(() => {
+                  const unreviewed =
+                    vocabulary.vocab.characters.filter((e) => !e.reviewed)
+                      .length +
+                    vocabulary.vocab.tags.filter((e) => !e.reviewed).length;
+                  if (unreviewed === 0) return null;
+                  return (
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        background: 'var(--warn)',
+                        color: 'var(--paper)',
+                        fontSize: 9,
+                        padding: '1px 5px',
+                        borderRadius: 999,
+                        fontFamily: 'var(--mono)',
+                      }}
+                    >
+                      {unreviewed}
+                    </span>
+                  );
+                })()}
+              </button>
+            )}
             <button onClick={() => setShowSettings(true)} title="Settings">
               Settings
             </button>
@@ -883,6 +1032,7 @@ export default function App() {
           <option value="date">Sort: Date on Sheet</option>
           <option value="title">Sort: Title</option>
           <option value="character">Sort: Character</option>
+          <option value="sheet_mark">Sort: Sheet Mark</option>
           <option value="updated">Sort: Recently Updated</option>
           <option value="created">Sort: Recently Added</option>
         </select>
@@ -905,9 +1055,9 @@ export default function App() {
           style={
             selectMode
               ? {
-                  background: 'var(--ink)',
-                  color: 'var(--paper)',
-                  borderColor: 'var(--ink)',
+                  background: 'var(--navy)',
+                  color: 'var(--cream)',
+                  borderColor: 'var(--navy)',
                 }
               : undefined
           }
@@ -1041,6 +1191,24 @@ export default function App() {
           </>
         )}
 
+        {filters.sheetMark && (
+          <>
+            <span className="facet-label" style={{ marginLeft: 12 }}>
+              Mark
+            </span>
+            <button
+              className="chip active"
+              onClick={() =>
+                setFilters((f) => ({ ...f, sheetMark: null }))
+              }
+              title="Click to clear this filter"
+              style={{ fontFamily: 'var(--mono)' }}
+            >
+              {filters.sheetMark} ×
+            </button>
+          </>
+        )}
+
         {anyFiltersActive && (
           <button
             className="chip"
@@ -1100,12 +1268,18 @@ export default function App() {
               <AddToListPicker
                 userLists={userLists}
                 count={selectedIds.size}
-                onChoose={(listIdOrNew) => {
+                onChoose={async (listIdOrNew) => {
                   let listId = listIdOrNew;
                   if (listIdOrNew === '__new__') {
-                    const name = prompt('Name for new list');
-                    if (!name || !name.trim()) return;
-                    listId = createList(name.trim()).id;
+                    const name = await promptDialog({
+                      title: 'New list',
+                      message: `This list will be created and ${selectedIds.size} sheet${
+                        selectedIds.size === 1 ? '' : 's'
+                      } will be added to it.`,
+                      placeholder: 'List name',
+                    });
+                    if (!name) return;
+                    listId = createList(name).id;
                   }
                   const added = addSheetsToList(
                     listId,
@@ -1153,8 +1327,8 @@ export default function App() {
                   display: 'flex',
                   alignItems: 'baseline',
                   gap: 12,
-                  borderBottom: '2px solid var(--ink)',
-                  paddingBottom: 6,
+                  borderBottom: '1px solid var(--rule)',
+                  paddingBottom: 8,
                   marginBottom: 16,
                 }}
               >
@@ -1264,11 +1438,13 @@ export default function App() {
           onClose={() => setSelectedId(null)}
           onEdit={() => setEditingId(selected.id)}
           onDelete={() => handleDelete(selected.id)}
+          onFocusInContext={() => handleFocusInContext(selected.id)}
         />
       )}
 
       {editing && isAuthenticated && (
         <SheetEdit
+          key={editing.id}
           sheet={editing}
           imageBase={BASE}
           publicBaseUrl={publicBaseUrl}
@@ -1276,7 +1452,7 @@ export default function App() {
           isNew={false}
           existingIds={existingIds}
           hasNextIncomplete={hasNextIncomplete}
-          onSave={handleSave}
+          onSave={async (u, f) => { await handleSave(u, f); }}
           onSaveAndNext={handleSaveAndNext}
           onCancel={() => setEditingId(null)}
         />
@@ -1291,7 +1467,7 @@ export default function App() {
           isNew={true}
           existingIds={existingIds}
           hasNextIncomplete={incompleteQueue.length > 0}
-          onSave={handleSave}
+          onSave={async (u, f) => { await handleSave(u, f); }}
           onSaveAndNext={handleSaveAndNext}
           onCancel={() => setCreatingNew(false)}
         />
@@ -1301,6 +1477,12 @@ export default function App() {
         <ManageLists
           onClose={() => setShowManageLists(false)}
           onChange={bumpLists}
+        />
+      )}
+
+      {showVocabularyHealth && (
+        <VocabularyHealth
+          onClose={() => setShowVocabularyHealth(false)}
         />
       )}
 
@@ -1337,20 +1519,8 @@ export default function App() {
       )}
 
       <div
-        style={{
-          position: 'fixed',
-          bottom: 16,
-          right: 16,
-          fontFamily: 'var(--mono)',
-          fontSize: 9,
-          color: 'var(--ink-faded)',
-          letterSpacing: '0.05em',
-          textAlign: 'right',
-          lineHeight: 1.6,
-          pointerEvents: 'none',
-          userSelect: 'none',
-          opacity: 0.6,
-        }}
+        className="keyboard-hint"
+        aria-hidden="true"
       >
         n new · b bulk · / search · j/k move · ↵ open · e edit · esc close
       </div>

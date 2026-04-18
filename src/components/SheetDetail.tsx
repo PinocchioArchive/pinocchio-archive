@@ -5,12 +5,13 @@ import {
   googleLensUrl,
   tineyeUrl,
 } from '../lib/image';
-import { formatSequenceParts } from '../lib/sheets';
+import { formatSequenceParts, computeResearchStatus } from '../lib/sheets';
 import {
   toggleSheetInList,
   createList,
   type UserList,
 } from '../lib/lists';
+import { useDialog } from './Dialog';
 
 interface Props {
   sheet: ModelSheet;
@@ -22,6 +23,9 @@ interface Props {
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  // Close the modal and scroll to this sheet's card in the grid,
+  // switching sort to "Sheet Number" so neighboring sheets are visible.
+  onFocusInContext?: () => void;
 }
 
 function Field({
@@ -51,6 +55,7 @@ export function SheetDetail({
   onClose,
   onEdit,
   onDelete,
+  onFocusInContext,
 }: Props) {
   const imageSrc = sheet.image_file ? `${imageBase}${sheet.image_file}` : '';
   const publicImageUrl = sheet.image_file
@@ -60,6 +65,7 @@ export function SheetDetail({
   const sortedOccurrences = [...sheet.web_occurrences].sort((a, b) =>
     b.checked_on.localeCompare(a.checked_on)
   );
+  const { promptDialog } = useDialog();
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -67,6 +73,44 @@ export function SheetDetail({
         <button className="modal-close" onClick={onClose} aria-label="Close">
           ×
         </button>
+        <div className="modal-masthead">
+          <span className="modal-masthead-eyebrow">View sheet</span>
+          <span className="modal-masthead-separator">·</span>
+          {onFocusInContext ? (
+            <button
+              type="button"
+              className="modal-masthead-id modal-masthead-id-button"
+              onClick={onFocusInContext}
+              title="See this sheet in context among its neighbors"
+            >
+              {sheet.id}
+            </button>
+          ) : (
+            <span className="modal-masthead-id">{sheet.id}</span>
+          )}
+          {sheet.title && (
+            <>
+              <span className="modal-masthead-separator">·</span>
+              <span
+                style={{
+                  fontFamily: 'var(--serif)',
+                  fontStyle: 'italic',
+                  fontSize: 14,
+                  color: 'var(--cream)',
+                  letterSpacing: 0,
+                  opacity: 0.9,
+                  textTransform: 'none',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: 400,
+                }}
+              >
+                {sheet.title}
+              </span>
+            </>
+          )}
+        </div>
         <div className="modal-body">
           <div className="modal-image">
             <div style={{ width: '100%', textAlign: 'center' }}>
@@ -150,7 +194,6 @@ export function SheetDetail({
           </div>
           <div className="modal-meta">
             <div className="modal-header">
-              <div className="modal-id">{sheet.id}</div>
               <h1 className="modal-title">
                 {sheet.title || (
                   <span
@@ -163,138 +206,116 @@ export function SheetDetail({
                   </span>
                 )}
               </h1>
-              {sheet.needs_research && (
-                <div style={{ marginTop: 10 }}>
-                  <span
-                    style={{
-                      background: 'rgba(168, 122, 58, 0.15)',
-                      color: 'var(--warn)',
-                      padding: '3px 10px',
-                      fontFamily: 'var(--mono)',
-                      fontSize: 10,
-                      letterSpacing: '0.1em',
-                      textTransform: 'uppercase',
-                      borderRadius: 999,
-                    }}
-                  >
-                    Needs Research
-                  </span>
-                </div>
-              )}
+              {(() => {
+                const status = computeResearchStatus(sheet);
+                const label =
+                  status === 'complete'
+                    ? 'Record complete'
+                    : status === 'some'
+                    ? 'Research pending'
+                    : 'Stub record — needs significant research';
+                return (
+                  <div className="research-status-row">
+                    <span
+                      className={`research-dot research-dot-${status} research-dot-inline`}
+                      aria-hidden="true"
+                    />
+                    <span className="research-status-label">{label}</span>
+                  </div>
+                );
+              })()}
             </div>
 
-            <div className="modal-section">
-              <div className="modal-section-label">Content</div>
-              <dl>
-                <Field
-                  label="Characters"
-                  value={
-                    sheet.characters.length ? (
-                      <div className="tag-list">
-                        {sheet.characters.map((c) => (
-                          <span key={c} className="tag">
-                            {c}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <em style={{ color: 'var(--ink-faded)' }}>
-                        none recorded
-                      </em>
-                    )
-                  }
-                />
-                {sheet.sequence_association && (
+            {(sheet.characters.length > 0 ||
+              sheet.sequence_association ||
+              sheet.artist) && (
+              <div className="modal-section">
+                <div className="modal-section-label">Content</div>
+                <dl>
+                  {sheet.characters.length > 0 && (
+                    <Field
+                      label="Characters"
+                      value={
+                        <div className="tag-list">
+                          {sheet.characters.map((c) => (
+                            <span key={c} className="tag">
+                              {c}
+                            </span>
+                          ))}
+                        </div>
+                      }
+                    />
+                  )}
+                  {sheet.sequence_association && (
+                    <Field
+                      label="Sequence"
+                      value={(() => {
+                        const parts = formatSequenceParts(
+                          sheet.sequence_association
+                        );
+                        return (
+                          <>
+                            {parts.number && (
+                              <span
+                                style={{
+                                  fontFamily: 'var(--mono)',
+                                  letterSpacing: '0.02em',
+                                }}
+                              >
+                                [SQ {parts.number}]
+                              </span>
+                            )}
+                            {parts.rest && (
+                              <span
+                                style={{ fontStyle: 'italic', marginLeft: 6 }}
+                              >
+                                ({parts.rest})
+                              </span>
+                            )}
+                            {!parts.number && !parts.rest && (
+                              <em style={{ color: 'var(--ink-faded)' }}>
+                                empty
+                              </em>
+                            )}
+                          </>
+                        );
+                      })()}
+                    />
+                  )}
+                  {sheet.artist && (
+                    <Field label="Artist" value={sheet.artist} />
+                  )}
+                </dl>
+              </div>
+            )}
+
+            {sheet.date_on_sheet && (
+              <div className="modal-section">
+                <div className="modal-section-label">Date</div>
+                <dl>
                   <Field
-                    label="Sequence"
-                    value={(() => {
-                      const parts = formatSequenceParts(
-                        sheet.sequence_association
-                      );
-                      return (
-                        <>
-                          {parts.number && (
-                            <span
-                              style={{
-                                fontFamily: 'var(--mono)',
-                                letterSpacing: '0.02em',
-                              }}
-                            >
-                              [SQ {parts.number}]
-                            </span>
-                          )}
-                          {parts.rest && (
-                            <span
-                              style={{ fontStyle: 'italic', marginLeft: 6 }}
-                            >
-                              ({parts.rest})
-                            </span>
-                          )}
-                          {!parts.number && !parts.rest && (
-                            <em style={{ color: 'var(--ink-faded)' }}>
-                              empty
-                            </em>
-                          )}
-                          {sheet.sequence_association_confidence && (
-                            <span
-                              style={{
-                                fontFamily: 'var(--mono)',
-                                fontSize: 9,
-                                letterSpacing: '0.1em',
-                                textTransform: 'uppercase',
-                                color:
-                                  sheet.sequence_association_confidence ===
-                                  'high'
-                                    ? 'var(--success)'
-                                    : sheet.sequence_association_confidence ===
-                                      'low'
-                                    ? 'var(--ink-faded)'
-                                    : 'var(--warn)',
-                                marginLeft: 8,
-                                padding: '1px 6px',
-                                border: `1px solid currentColor`,
-                              }}
-                              title="Scholarly confidence in this sequence identification"
-                            >
-                              {sheet.sequence_association_confidence}
-                            </span>
-                          )}
-                        </>
-                      );
-                    })()}
-                  />
-                )}
-                {sheet.artist && <Field label="Artist" value={sheet.artist} />}
-              </dl>
-            </div>
-
-            <div className="modal-section">
-              <div className="modal-section-label">Date</div>
-              <dl>
-                <Field
-                  label="Date on sheet"
-                  value={
-                    sheet.date_on_sheet ? (
+                    label="Date on sheet"
+                    value={
                       <>
-                        {sheet.date_on_sheet}{' '}
-                        <span
-                          style={{
-                            fontFamily: 'var(--mono)',
-                            fontSize: 10,
-                            color: 'var(--ink-faded)',
-                            marginLeft: 6,
-                          }}
-                        >
-                          ({sheet.date_precision})
-                        </span>
+                        {sheet.date_on_sheet}
+                        {sheet.date_precision !== 'unknown' && (
+                          <span
+                            style={{
+                              fontFamily: 'var(--mono)',
+                              fontSize: 10,
+                              color: 'var(--ink-faded)',
+                              marginLeft: 6,
+                            }}
+                          >
+                            ({sheet.date_precision})
+                          </span>
+                        )}
                       </>
-                    ) : (
-                      <em style={{ color: 'var(--ink-faded)' }}>none</em>
-                    )
-                  }
-                />
-              </dl>
-            </div>
+                    }
+                  />
+                </dl>
+              </div>
+            )}
 
             {sheet.production_stamps.length > 0 && (
               <div className="modal-section">
@@ -348,6 +369,60 @@ export function SheetDetail({
               </div>
             )}
 
+            {(sheet.sheet_marks && sheet.sheet_marks.length > 0) && (
+              <div className="modal-section">
+                <div className="modal-section-label">Sheet Marks</div>
+                <ul
+                  style={{
+                    margin: 0,
+                    paddingLeft: 0,
+                    listStyle: 'none',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  {sheet.sheet_marks.map((m, i) => (
+                    <li
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        gap: 10,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          window.dispatchEvent(
+                            new CustomEvent('filter:set', {
+                              detail: { key: 'sheet_mark', value: m.value },
+                            })
+                          )
+                        }
+                        className="sheet-mark-chip"
+                        title={`Show all sheets with the mark "${m.value}"`}
+                      >
+                        {m.value || <em>(empty)</em>}
+                      </button>
+                      {m.notes && (
+                        <span
+                          style={{
+                            color: 'var(--ink-faded)',
+                            fontStyle: 'italic',
+                            fontSize: 13,
+                          }}
+                        >
+                          {m.notes}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="modal-section">
               <div
                 className="modal-section-label"
@@ -394,12 +469,15 @@ export function SheetDetail({
                     <button
                       className="chip"
                       style={{ fontSize: 11 }}
-                      onClick={() => {
-                        const name = prompt(
-                          'Name for your first list (e.g., "In my collection", "For thesis")'
-                        );
-                        if (!name || !name.trim()) return;
-                        const l = createList(name.trim());
+                      onClick={async () => {
+                        const name = await promptDialog({
+                          title: 'Create your first list',
+                          message:
+                            'e.g. "In my collection", "For thesis", "Wishlist"',
+                          placeholder: 'List name',
+                        });
+                        if (!name) return;
+                        const l = createList(name);
                         toggleSheetInList(l.id, sheet.id);
                         onListsChanged();
                       }}
@@ -433,10 +511,13 @@ export function SheetDetail({
                     <button
                       className="chip"
                       style={{ fontSize: 11, fontStyle: 'italic' }}
-                      onClick={() => {
-                        const name = prompt('Name for new list');
-                        if (!name || !name.trim()) return;
-                        const l = createList(name.trim());
+                      onClick={async () => {
+                        const name = await promptDialog({
+                          title: 'New list',
+                          placeholder: 'List name',
+                        });
+                        if (!name) return;
+                        const l = createList(name);
                         toggleSheetInList(l.id, sheet.id);
                         onListsChanged();
                       }}
@@ -448,9 +529,11 @@ export function SheetDetail({
               </div>
             </div>
 
-            <div className="modal-section">
-              <div className="modal-section-label">Provenance</div>
-              {sheet.image_sources.length > 0 && (
+            {(sheet.image_sources.length > 0 ||
+              sheet.published_references.length > 0) && (
+              <div className="modal-section">
+                <div className="modal-section-label">Provenance</div>
+                {sheet.image_sources.length > 0 && (
                 <>
                   <div
                     style={{
@@ -577,16 +660,6 @@ export function SheetDetail({
                             ret. {s.retrieved}
                           </span>
                         )}
-                        {s.watermark && (
-                          <div
-                            style={{
-                              color: 'var(--ink-faded)',
-                              fontStyle: 'italic',
-                            }}
-                          >
-                            Mark: {s.watermark}
-                          </div>
-                        )}
                         {s.notes && (
                           <div style={{ color: 'var(--ink-faded)' }}>
                             {s.notes}
@@ -635,29 +708,48 @@ export function SheetDetail({
                   </ul>
                 </>
               )}
-            </div>
-
-            <div className="modal-section">
-              <div className="modal-section-label">Rarity</div>
-              <div className="rarity-grid">
-                <div className="rarity-cell">
-                  <div className="rarity-cell-label">Market</div>
-                  <div className="rarity-cell-value">{sheet.rarity.market}</div>
-                </div>
-                <div className="rarity-cell">
-                  <div className="rarity-cell-label">Institutional</div>
-                  <div className="rarity-cell-value">
-                    {sheet.rarity.institutional}
-                  </div>
-                </div>
-                <div className="rarity-cell">
-                  <div className="rarity-cell-label">Iconographic</div>
-                  <div className="rarity-cell-value">
-                    {sheet.rarity.iconographic}
-                  </div>
-                </div>
               </div>
-            </div>
+            )}
+
+            {(() => {
+              // Hide rarity cells that haven't been explicitly set.
+              // 'unknown' is the default/unset state — only show cells the
+              // user has actually chosen a level for. Hide the section
+              // entirely if all three dimensions are unset.
+              const rarityEntries: {
+                label: string;
+                value: string;
+              }[] = [];
+              if (sheet.rarity.market !== 'unknown')
+                rarityEntries.push({
+                  label: 'Market',
+                  value: sheet.rarity.market,
+                });
+              if (sheet.rarity.institutional !== 'unknown')
+                rarityEntries.push({
+                  label: 'Institutional',
+                  value: sheet.rarity.institutional,
+                });
+              if (sheet.rarity.iconographic !== 'unknown')
+                rarityEntries.push({
+                  label: 'Iconographic',
+                  value: sheet.rarity.iconographic,
+                });
+              if (rarityEntries.length === 0) return null;
+              return (
+                <div className="modal-section">
+                  <div className="modal-section-label">Rarity</div>
+                  <div className="rarity-grid">
+                    {rarityEntries.map((e) => (
+                      <div key={e.label} className="rarity-cell">
+                        <div className="rarity-cell-label">{e.label}</div>
+                        <div className="rarity-cell-value">{e.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {sortedOccurrences.length > 0 && (
               <div className="modal-section">
@@ -744,18 +836,13 @@ export function SheetDetail({
 
             <div className="modal-actions">
               {canEdit && (
-                <>
-                  <button
-                    className="btn btn-filled"
-                    onClick={onEdit}
-                    title="E"
-                  >
-                    Edit
-                  </button>
-                  <button className="btn btn-danger" onClick={onDelete}>
-                    Delete
-                  </button>
-                </>
+                <button
+                  className="btn btn-filled"
+                  onClick={onEdit}
+                  title="E"
+                >
+                  Edit
+                </button>
               )}
               <div style={{ flex: 1 }} />
               <div
@@ -768,6 +855,16 @@ export function SheetDetail({
               >
                 Updated {sheet.updated_at.slice(0, 10)}
               </div>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="btn-delete-muted"
+                  title="Delete this record"
+                >
+                  Delete record…
+                </button>
+              )}
             </div>
           </div>
         </div>

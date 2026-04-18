@@ -8,6 +8,7 @@ import type {
   DatePrecision,
   WebOccurrenceReading,
   ProductionStamp,
+  SheetMark,
   ArchiveStatus,
 } from '../types/schema';
 import { parseSheetNumber } from '../lib/sheets';
@@ -24,6 +25,7 @@ import {
 import { TagInput } from './TagInput';
 import { AutocompleteInput } from './AutocompleteInput';
 import { ExtractionReview } from './ExtractionReview';
+import { VocabularyLint } from './VocabularyLint';
 import { tesseractExtractor } from '../lib/extraction/tesseract';
 import { claudeExtractor, claudeUrlExtractor, getApiKey as getAnthropicKey } from '../lib/extraction/claude';
 import type { ExtractionResult } from '../lib/extraction/types';
@@ -210,11 +212,10 @@ export function SheetEdit({
       }
       // Esc = cancel
       if (e.key === 'Escape') {
-        const target = e.target as HTMLElement;
-        // Let autocomplete/tag dropdowns close first
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
-          return;
-        }
+        // Autocomplete and tag inputs stop propagation when their
+        // dropdown is open, so Escape there closes the dropdown first
+        // and doesn't reach this handler. If we do see Escape here,
+        // nothing is intercepting it — cancel the form.
         onCancel();
       }
     };
@@ -620,6 +621,11 @@ export function SheetEdit({
                 <span className="form-hint">
                   Enter to add, Backspace to remove, ↓ to browse
                 </span>
+                <VocabularyLint
+                  kind="characters"
+                  values={draft.characters}
+                  onValuesChange={(v) => update('characters', v)}
+                />
               </div>
 
               <div className="form-field">
@@ -632,69 +638,6 @@ export function SheetEdit({
                   suggestions={vocab.sequences}
                   placeholder="e.g., 1.5 or 4.2"
                 />
-                {draft.sequence_association && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 4,
-                      marginTop: 4,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: 'var(--mono)',
-                        fontSize: 9,
-                        letterSpacing: '0.1em',
-                        textTransform: 'uppercase',
-                        color: 'var(--ink-faded)',
-                      }}
-                    >
-                      Confidence:
-                    </span>
-                    {(['high', 'medium', 'low', 'unverified'] as const).map(
-                      (c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() =>
-                            update('sequence_association_confidence', c)
-                          }
-                          style={{
-                            fontFamily: 'var(--mono)',
-                            fontSize: 9,
-                            letterSpacing: '0.1em',
-                            textTransform: 'uppercase',
-                            padding: '1px 6px',
-                            border: `1px solid ${
-                              (draft.sequence_association_confidence ||
-                                'medium') === c
-                                ? 'var(--ink)'
-                                : 'var(--rule)'
-                            }`,
-                            background:
-                              (draft.sequence_association_confidence ||
-                                'medium') === c
-                                ? 'var(--ink)'
-                                : 'var(--paper)',
-                            color:
-                              (draft.sequence_association_confidence ||
-                                'medium') === c
-                                ? 'var(--paper)'
-                                : 'var(--ink-soft)',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {c}
-                        </button>
-                      )
-                    )}
-                  </div>
-                )}
-                <span className="form-hint">
-                  Usually inferred, not stamped. "High" = primary-source
-                  confirmed (e.g., Kaufman); "Low" = working hypothesis.
-                </span>
               </div>
 
               <div className="form-field">
@@ -750,6 +693,20 @@ export function SheetEdit({
                 <span className="form-hint">
                   e.g., "PROD 2003 SEQ 4.2 SCENE 50" lower right. Usually on
                   production drawings / cels, rarely on Character Model sheets.
+                </span>
+              </div>
+
+              <div className="form-field form-field-wide">
+                <label className="form-label">Sheet Marks</label>
+                <RepeatableSheetMarks
+                  items={draft.sheet_marks || []}
+                  onChange={(v) => update('sheet_marks', v)}
+                />
+                <span className="form-hint">
+                  Handwritten codes, numbers, or other marks of uncertain
+                  meaning — things you see on the sheet but haven't yet
+                  identified. Sortable so you can find sheets sharing the
+                  same mark and investigate.
                 </span>
               </div>
 
@@ -831,6 +788,11 @@ export function SheetEdit({
                   onChange={(v) => update('tags', v)}
                   suggestions={vocab.tags}
                   placeholder="deleted_sequence, approved"
+                />
+                <VocabularyLint
+                  kind="tags"
+                  values={draft.tags}
+                  onValuesChange={(v) => update('tags', v)}
                 />
               </div>
 
@@ -1273,6 +1235,82 @@ function RepeatableProductionStamps({
   );
 }
 
+// Repeatable {value, notes} rows for sheet_marks — unidentified codes
+// handwritten or stamped on the sheet. Intentionally spare: the whole
+// point of this field is to log uncertain things without committing to
+// what they mean.
+function RepeatableSheetMarks({
+  items,
+  onChange,
+}: {
+  items: SheetMark[];
+  onChange: (v: SheetMark[]) => void;
+}) {
+  const add = () =>
+    onChange([...items, { value: '', notes: '' }]);
+  const remove = (i: number) =>
+    onChange(items.filter((_, idx) => idx !== i));
+  const setItem = (i: number, patch: Partial<SheetMark>) =>
+    onChange(items.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
+
+  return (
+    <div className="form-repeatable">
+      {items.length === 0 && (
+        <span className="form-hint">
+          None. Add one below if you see unidentified marks on the sheet.
+        </span>
+      )}
+      {items.map((item, i) => (
+        <div
+          key={i}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 2fr auto',
+            gap: 6,
+            padding: '8px 10px',
+            background: 'var(--paper)',
+            border: '1px solid var(--rule)',
+            alignItems: 'start',
+          }}
+        >
+          <input
+            type="text"
+            className="form-input"
+            value={item.value}
+            placeholder="19-347"
+            onChange={(e) => setItem(i, { value: e.target.value })}
+            style={{ fontFamily: 'var(--mono)', fontSize: 13 }}
+          />
+          <input
+            type="text"
+            className="form-input"
+            value={item.notes || ''}
+            placeholder="Location / medium / theories (optional)"
+            onChange={(e) => setItem(i, { notes: e.target.value })}
+          />
+          <button
+            type="button"
+            className="btn-small"
+            onClick={() => remove(i)}
+            aria-label="Remove this mark"
+            title="Remove"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="btn-small"
+        onClick={add}
+        style={{ alignSelf: 'flex-start' }}
+      >
+        + Add mark
+      </button>
+    </div>
+  );
+}
+
 function RepeatableImageSources({
   items,
   onChange,
@@ -1296,7 +1334,6 @@ function RepeatableImageSources({
         source_name: '',
         url: '',
         retrieved: new Date().toISOString().slice(0, 10),
-        watermark: '',
         notes: '',
         archive_status: 'not_attempted',
       },
@@ -1334,7 +1371,6 @@ function RepeatableImageSources({
         source_type: inference?.source_type ?? 'unknown',
         source_name: inference?.source_name ?? '',
         retrieved: new Date().toISOString().slice(0, 10),
-        watermark: '',
         notes: '',
         source_name_inferred: inference?.confident,
         source_type_inferred: inference?.confident,
@@ -1684,13 +1720,6 @@ function RepeatableImageSources({
               )}
             </div>
           )}
-          <input
-            type="text"
-            className="form-input"
-            value={item.watermark || ''}
-            placeholder="Watermark / stamp (e.g. cert #12345)"
-            onChange={(e) => setItem(i, { watermark: e.target.value })}
-          />
           <input
             type="text"
             className="form-input"

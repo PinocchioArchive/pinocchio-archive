@@ -140,6 +140,27 @@ export function compareSheetsByCharacter(
   return aChars.length - bChars.length;
 }
 
+// Sorts sheets by their first sheet mark's value. Sheets with no
+// marks sort last. Uses a natural / numeric-aware compare so "19-47"
+// comes before "19-347" rather than "19-347" coming first (which is
+// how straight localeCompare would sort them).
+export function compareSheetsBySheetMark(
+  a: ModelSheet,
+  b: ModelSheet
+): number {
+  const aMark = a.sheet_marks?.[0]?.value || '';
+  const bMark = b.sheet_marks?.[0]?.value || '';
+  if (!aMark && !bMark) return compareSheets(a, b);
+  if (!aMark) return 1;
+  if (!bMark) return -1;
+  const cmp = aMark.localeCompare(bMark, undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  });
+  if (cmp !== 0) return cmp;
+  return compareSheets(a, b);
+}
+
 export function makeEmptySheet(
   id: string,
   defaults: Partial<ModelSheet> = {}
@@ -161,6 +182,7 @@ export function makeEmptySheet(
     date_on_sheet: undefined,
     date_precision: 'unknown' as DatePrecision,
     approvals: defaults.approvals || [],
+    sheet_marks: defaults.sheet_marks || [],
     image_file: '',
     image_sources: [],
     published_references: [],
@@ -197,18 +219,27 @@ export function migrateArchive(raw: any): ArchiveData {
       web_occurrences: s.web_occurrences ?? [],
       image_width: s.image_width,
       image_height: s.image_height,
-      image_sources: (s.image_sources || []).map((src: any) => ({
-        ...src,
-        watermark: src.watermark,
-        // v4 → v5: add archive_status default for existing sources.
-        // Old records had no capture attempt, so flag them explicitly.
-        archive_status: src.archive_status ?? 'not_attempted',
-      })),
+      image_sources: (s.image_sources || []).map((src: any) => {
+        // Clean break on watermark: the field is no longer part of the
+        // schema. Any value present in older records is stripped out
+        // here so JSON round-trips don't keep re-introducing it. Any
+        // information the user had there should be captured in
+        // sheet_marks (the new field) or moved to the source's notes.
+        const { watermark: _discarded, ...rest } = src;
+        return {
+          ...rest,
+          // v4 → v5: add archive_status default for existing sources.
+          archive_status: src.archive_status ?? 'not_attempted',
+        };
+      }),
       sequence_association: seqAssoc,
       sequence_association_confidence:
         s.sequence_association_confidence ??
         (seqAssoc ? 'medium' : undefined),
       production_stamps: s.production_stamps ?? [],
+      // v5 → v5+: sheet_marks holds unidentified handwritten/stamped
+      // codes. Older records won't have this field; default to empty.
+      sheet_marks: Array.isArray(s.sheet_marks) ? s.sheet_marks : [],
       // Fields removed across migrations — set to undefined so they don't
       // accidentally survive a partial migration and confuse downstream code.
       sequence: undefined,
@@ -296,4 +327,52 @@ export function looksIncomplete(sheet: ModelSheet): boolean {
     sheet.characters.length === 0 ||
     !sheet.date_on_sheet
   );
+}
+
+// ResearchStatus represents how complete a sheet's scholarly record is.
+// - 'complete': most scholarly fields populated AND not flagged for research
+// - 'some':     partial info, OR explicitly flagged for more research
+// - 'stub':     minimal info — barely-started record
+//
+// Calibrated for Character Model Department sheets specifically. These
+// sheets often deliberately lack "characters" (they predate character
+// design lock) and predate formal sequence stamping, so the heuristic
+// treats tags, notes, and general content as real scholarly signals
+// rather than only counting the rigid production-metadata fields.
+export type ResearchStatus = 'complete' | 'some' | 'stub';
+
+export function computeResearchStatus(sheet: ModelSheet): ResearchStatus {
+  // Eight signals — each present adds one point. Chosen so that a
+  // typical Character Model Department sheet with title + date +
+  // sequence + some tags counts comfortably in the "some" band even
+  // without characters or archive verification.
+  let signals = 0;
+  if (sheet.title && sheet.title.trim()) signals++;
+  if (sheet.characters.length >= 1) signals++;
+  if (
+    sheet.date_on_sheet &&
+    sheet.date_on_sheet.trim() &&
+    sheet.date_precision !== 'unknown'
+  )
+    signals++;
+  if (sheet.sequence_association && sheet.sequence_association.trim()) signals++;
+  if (sheet.image_sources.some((s) => s.archive_status === 'verified')) signals++;
+  if ((sheet.artist && sheet.artist.trim()) || sheet.approvals.length >= 1)
+    signals++;
+  if (sheet.published_references.length >= 1) signals++;
+  if ((sheet.notes && sheet.notes.trim()) || sheet.tags.length >= 1) signals++;
+
+  // Explicit override: if needs_research is flagged, never show green.
+  if (sheet.needs_research) {
+    return signals <= 1 ? 'stub' : 'some';
+  }
+
+  // Thresholds tuned so:
+  //   - A record with title + sequence + date + tags (4 signals) → 'some'
+  //   - A record with just a title and nothing else (1 signal) → 'stub'
+  //   - A truly empty record → 'stub'
+  //   - A record with most fields populated (5+) → 'complete'
+  if (signals >= 5) return 'complete';
+  if (signals >= 2) return 'some';
+  return 'stub';
 }

@@ -44,7 +44,6 @@ export interface ImageSource {
   source_type: ImageSourceType;
   source_name?: string;
   retrieved?: string;
-  watermark?: string;
   notes?: string;
 
   // Wayback Machine preservation data. `archive_url` is the expected
@@ -91,6 +90,17 @@ export interface ProductionStamp {
   notes?: string;
 }
 
+// A handwritten or stamped mark on a sheet whose meaning is not yet
+// known. Often numerical (e.g., "19-347" penciled in a corner) but
+// can also be letters or mixed. The researcher logs these as they
+// find them, and can later sort / filter by mark value to discover
+// sheets that share codes — the kind of pattern-spotting that leads
+// to figuring out what the codes actually mean.
+export interface SheetMark {
+  value: string; // the mark itself as transcribed
+  notes?: string; // optional context: where it appears, medium, theories
+}
+
 export interface ModelSheet {
   id: string;
   sheet_number_prefix: string;
@@ -115,6 +125,14 @@ export interface ModelSheet {
   date_precision: DatePrecision;
 
   approvals: string[];
+
+  // Unidentified handwritten or stamped marks on the sheet — numerical
+  // codes, letter codes, inspection marks, catalog numbers of uncertain
+  // origin, etc. These are distinct from `production_stamps` (where we
+  // know what each part means): sheet marks are "I see this marking, I
+  // don't yet know what it signifies." Logging them lets the researcher
+  // find sheets that share the same mark and investigate common origin.
+  sheet_marks?: SheetMark[];
 
   image_file: string;
   image_width?: number;
