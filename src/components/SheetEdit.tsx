@@ -642,11 +642,51 @@ export function SheetEdit({
 
               <div className="form-field">
                 <label className="form-label">Artist</label>
-                <AutocompleteInput
-                  value={draft.artist || ''}
-                  onChange={(v) => update('artist', v || undefined)}
-                  suggestions={vocab.artists}
-                />
+                <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+                  <div style={{ flex: 1 }}>
+                    <AutocompleteInput
+                      value={draft.artist || ''}
+                      onChange={(v) => update('artist', v || undefined)}
+                      suggestions={vocab.artists}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-small"
+                    onClick={() =>
+                      update(
+                        'artist',
+                        draft.artist === 'Unknown' ? undefined : 'Unknown'
+                      )
+                    }
+                    title={
+                      draft.artist === 'Unknown'
+                        ? 'Clear "Unknown" — artist not yet researched'
+                        : 'Mark artist as researched but unknown (distinct from blank, which means not yet researched)'
+                    }
+                    style={{
+                      whiteSpace: 'nowrap',
+                      background:
+                        draft.artist === 'Unknown'
+                          ? 'var(--navy)'
+                          : undefined,
+                      color:
+                        draft.artist === 'Unknown'
+                          ? 'var(--cream)'
+                          : undefined,
+                      borderColor:
+                        draft.artist === 'Unknown'
+                          ? 'var(--navy)'
+                          : undefined,
+                    }}
+                  >
+                    {draft.artist === 'Unknown' ? '✓ Unknown' : 'Unknown'}
+                  </button>
+                </div>
+                <span className="form-hint">
+                  Leave blank if not yet researched. Mark "Unknown" when
+                  researched but unidentifiable from available evidence.
+                </span>
               </div>
 
               <div className="form-field">

@@ -345,6 +345,15 @@ export function looksIncomplete(sheet: ModelSheet): boolean {
 export type ResearchStatus = 'complete' | 'some' | 'stub';
 
 export function computeResearchStatus(sheet: ModelSheet): ResearchStatus {
+  // Hard constraint: no attached image → always stub, regardless of
+  // how thoroughly the metadata is filled in. The archive exists to
+  // assemble the VISUAL record of the deleted sequence, so a record
+  // without its image is fundamentally incomplete by the archive's
+  // own terms, even if the scholarly metadata is exhaustive.
+  if (!sheet.image_file || !sheet.image_file.trim()) {
+    return 'stub';
+  }
+
   // Eight signals — each present adds one point. Chosen so that a
   // typical Character Model Department sheet with title + date +
   // sequence + some tags counts comfortably in the "some" band even

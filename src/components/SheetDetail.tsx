@@ -295,14 +295,25 @@ export function SheetDetail({
               </h1>
               {(() => {
                 const status = computeResearchStatus(sheet);
+                const noImage =
+                  !sheet.image_file || !sheet.image_file.trim();
                 const label =
                   status === 'complete'
                     ? 'Record complete'
                     : status === 'some'
                     ? 'Research pending'
+                    : noImage
+                    ? 'Stub record — image not yet attached'
                     : 'Stub record — needs significant research';
                 return (
-                  <div className="research-status-row">
+                  <div
+                    className="research-status-row"
+                    title={
+                      noImage && status === 'stub'
+                        ? 'The archive is a visual record; without an attached image, this record is incomplete regardless of its metadata.'
+                        : undefined
+                    }
+                  >
                     <span
                       className={`research-dot research-dot-${status} research-dot-inline`}
                       aria-hidden="true"

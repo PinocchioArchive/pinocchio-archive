@@ -26,6 +26,12 @@ import {
 import { useKeyboardShortcuts } from './lib/useKeyboardShortcuts';
 import { loadLists, addSheetsToList, createList } from './lib/lists';
 import { reverifyPendingSource } from './lib/archive';
+import {
+  readArchiveCache,
+  writeArchiveCache,
+  clearArchiveCache,
+  pickFreshestArchive,
+} from './lib/archiveCache';
 import { SheetCard } from './components/SheetCard';
 import { GapCard } from './components/GapCard';
 import { SheetListRow } from './components/SheetListRow';
@@ -188,23 +194,46 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetch(`${BASE}data/sheets.json`)
+    const cache = readArchiveCache();
+    // Add cache-busting query param so browsers don't serve their own
+    // cached response (distinct problem from the CDN cache). The CDN
+    // itself respects its own TTL regardless, which is why we shadow.
+    fetch(`${BASE}data/sheets.json?t=${Date.now()}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then((raw) => {
-        const migrated = migrateArchive(raw);
-        setData(migrated);
+        const fetchedMigrated = migrateArchive(raw);
+        // GitHub Pages CDN can serve a stale sheets.json for 1–2
+        // minutes after a commit. During that window, the user's
+        // recent edits look reverted on refresh. Resolve by comparing
+        // the fetched copy to a shadow cache written on every save;
+        // whichever has the newer latestTime wins.
+        const { archive, shouldClearCache, usedCache } =
+          pickFreshestArchive(fetchedMigrated, cache);
+        if (usedCache) {
+          console.info(
+            '[Archive] Using local cache — CDN has not caught up yet'
+          );
+        }
+        if (shouldClearCache) clearArchiveCache();
+        setData(archive);
         // Seed the vocabulary from these sheets if vocabulary.json
         // doesn't yet exist. Silent no-op if already seeded or if
         // the user isn't authenticated.
-        void vocabulary.seedIfMissing(migrated.sheets);
+        void vocabulary.seedIfMissing(archive.sheets);
       })
       .catch((e) => {
-        console.warn('Could not load sheets.json, starting empty:', e);
-        setData({ schema_version: 5, sheets: [] });
-        setLoadError(e.message);
+        console.warn('Could not load sheets.json:', e);
+        // Fall back to cache if we have one. Otherwise start empty.
+        if (cache) {
+          console.info('[Archive] Using local cache (fetch failed)');
+          setData(cache.archive);
+        } else {
+          setData({ schema_version: 5, sheets: [] });
+          setLoadError(e.message);
+        }
       });
     // Only run once on mount; vocabulary.seedIfMissing is stable enough
     // that including it in deps would re-trigger the fetch unnecessarily.
@@ -306,9 +335,15 @@ export default function App() {
               'data/sheets.json',
               JSON.stringify(current, null, 2),
               'Auto-verify Wayback statuses'
-            ).catch((e) =>
-              console.warn('[Wayback reverify] commit failed:', e)
-            );
+            )
+              .then(() => {
+                // Shadow-cache so a refresh during CDN lag doesn't
+                // revert these background-updated statuses.
+                writeArchiveCache(current);
+              })
+              .catch((e) =>
+                console.warn('[Wayback reverify] commit failed:', e)
+              );
             return current;
           });
         }, 1000);
@@ -652,6 +687,12 @@ export default function App() {
       a.click();
       URL.revokeObjectURL(url);
     }
+    // Shadow-cache the just-saved archive in localStorage. This is the
+    // write half of the CDN-lag workaround: on the next page load, if
+    // the CDN is still serving the old sheets.json, we'll prefer this
+    // cache. Once the CDN catches up, the load-side merge clears the
+    // cache automatically.
+    writeArchiveCache(nextData);
     setData(nextData);
   };
 
@@ -826,6 +867,9 @@ export default function App() {
       JSON.stringify(nextData, null, 2),
       `Bulk import ${items.length} sheets`
     );
+    // Shadow-cache so a refresh during CDN lag doesn't revert the
+    // import. Matches the pattern used in writeArchive.
+    writeArchiveCache(nextData);
     setData(nextData);
     flashToast(`Imported ${items.length} stub records`);
     setShowBulk(false);
