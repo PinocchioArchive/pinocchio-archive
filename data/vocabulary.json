@@ -29,6 +29,13 @@
       "aliases": [],
       "reviewed": false,
       "added_at": "2026-04-18T23:21:23.358Z"
+    },
+    {
+      "canonical": "Animal",
+      "aliases": [],
+      "reviewed": true,
+      "added_at": "2026-04-18T23:21:24.287Z",
+      "reviewed_at": "2026-04-18T23:24:35.541Z"
     }
   ]
 }
