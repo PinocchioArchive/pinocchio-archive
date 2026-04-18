@@ -7,10 +7,7 @@
       "sheet_number_numeric": 217,
       "sheet_number_suffix": "A",
       "title": "Shark Suggestions",
-      "characters": [
-        "shark",
-        "fish"
-      ],
+      "characters": [],
       "production_stamps": [],
       "department": "Character Model Department",
       "date_precision": "unknown",
@@ -38,11 +35,14 @@
       "confidence": "unverified",
       "needs_research": true,
       "tags": [
-        "undersea"
+        "undersea",
+        "shark",
+        "fish",
+        "animal"
       ],
       "notes": "",
       "created_at": "2026-04-18T05:17:44.459Z",
-      "updated_at": "2026-04-18T10:34:19.237Z",
+      "updated_at": "2026-04-18T10:35:55.201Z",
       "image_width": 900,
       "image_height": 706,
       "sequence_association": "9-1",
