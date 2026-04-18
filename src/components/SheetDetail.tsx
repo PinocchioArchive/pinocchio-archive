@@ -5,7 +5,7 @@ import {
   googleLensUrl,
   tineyeUrl,
 } from '../lib/image';
-import { formatSequenceParts } from '../lib/sheets';
+import { formatSequenceParts, computeResearchStatus } from '../lib/sheets';
 import {
   toggleSheetInList,
   createList,
@@ -165,24 +165,24 @@ export function SheetDetail({
                   </span>
                 )}
               </h1>
-              {sheet.needs_research && (
-                <div style={{ marginTop: 10 }}>
-                  <span
-                    style={{
-                      background: 'rgba(168, 122, 58, 0.15)',
-                      color: 'var(--warn)',
-                      padding: '3px 10px',
-                      fontFamily: 'var(--mono)',
-                      fontSize: 10,
-                      letterSpacing: '0.1em',
-                      textTransform: 'uppercase',
-                      borderRadius: 999,
-                    }}
-                  >
-                    Needs Research
-                  </span>
-                </div>
-              )}
+              {(() => {
+                const status = computeResearchStatus(sheet);
+                const label =
+                  status === 'complete'
+                    ? 'Record complete'
+                    : status === 'some'
+                    ? 'Research pending'
+                    : 'Stub record — needs significant research';
+                return (
+                  <div className="research-status-row">
+                    <span
+                      className={`research-dot research-dot-${status} research-dot-inline`}
+                      aria-hidden="true"
+                    />
+                    <span className="research-status-label">{label}</span>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="modal-section">
@@ -278,17 +278,19 @@ export function SheetDetail({
                   value={
                     sheet.date_on_sheet ? (
                       <>
-                        {sheet.date_on_sheet}{' '}
-                        <span
-                          style={{
-                            fontFamily: 'var(--mono)',
-                            fontSize: 10,
-                            color: 'var(--ink-faded)',
-                            marginLeft: 6,
-                          }}
-                        >
-                          ({sheet.date_precision})
-                        </span>
+                        {sheet.date_on_sheet}
+                        {sheet.date_precision !== 'unknown' && (
+                          <span
+                            style={{
+                              fontFamily: 'var(--mono)',
+                              fontSize: 10,
+                              color: 'var(--ink-faded)',
+                              marginLeft: 6,
+                            }}
+                          >
+                            ({sheet.date_precision})
+                          </span>
+                        )}
                       </>
                     ) : (
                       <em style={{ color: 'var(--ink-faded)' }}>none</em>

@@ -297,3 +297,56 @@ export function looksIncomplete(sheet: ModelSheet): boolean {
     !sheet.date_on_sheet
   );
 }
+
+// ResearchStatus represents how complete a sheet's scholarly record is.
+// - 'complete': most scholarly fields populated AND not flagged for research
+// - 'some':     partial info, OR explicitly flagged for more research
+// - 'stub':     minimal info, very few fields populated
+//
+// Used to drive the colored status dot on cards and in the detail view.
+// Green (complete) means "I'm satisfied with this record." Yellow (some)
+// means "more work to do, either because fields are missing or because
+// I've flagged this for deeper investigation." Red (stub) means "this
+// record is barely started — minimal signals present."
+export type ResearchStatus = 'complete' | 'some' | 'stub';
+
+export function computeResearchStatus(sheet: ModelSheet): ResearchStatus {
+  // Count key scholarly signals present. Each contributes one point.
+  // We deliberately don't weight these — a simple count is easier to
+  // reason about and tune. The signals are chosen because each one
+  // represents a distinct scholarly contribution: identification
+  // (title/characters), dating, production context (sequence), physical
+  // provenance (verified archive), attribution (artist/approvals),
+  // and scholarly context (references/notes).
+  let signals = 0;
+  if (sheet.title && sheet.title.trim()) signals++;
+  if (sheet.characters.length >= 1) signals++;
+  if (
+    sheet.date_on_sheet &&
+    sheet.date_on_sheet.trim() &&
+    sheet.date_precision !== 'unknown'
+  )
+    signals++;
+  if (sheet.sequence_association && sheet.sequence_association.trim()) signals++;
+  if (
+    sheet.image_sources.some((s) => s.archive_status === 'verified')
+  )
+    signals++;
+  if (
+    (sheet.artist && sheet.artist.trim()) ||
+    sheet.approvals.length >= 1
+  )
+    signals++;
+  if (sheet.published_references.length >= 1 || (sheet.notes && sheet.notes.trim()))
+    signals++;
+
+  // Explicit override: if needs_research is set, never show green. Still
+  // allow red if the record is genuinely bare.
+  if (sheet.needs_research) {
+    return signals <= 3 ? 'stub' : 'some';
+  }
+
+  if (signals >= 6) return 'complete';
+  if (signals >= 3) return 'some';
+  return 'stub';
+}

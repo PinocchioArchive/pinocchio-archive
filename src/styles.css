@@ -1828,3 +1828,58 @@ button.btn-small,
   background: var(--ink-soft);
   border-color: var(--ink-soft);
 }
+
+/* ---------- Research status dot (lower-left of card) ---------- */
+
+.research-dot {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  pointer-events: auto;
+  cursor: help;
+  /* Subtle ring for visibility against any background */
+  box-shadow: 0 0 0 1px rgba(26, 23, 19, 0.08);
+}
+
+.research-dot-complete {
+  background: #4a6b3a; /* olive / success */
+}
+
+.research-dot-some {
+  background: #c9a645; /* muted warm yellow */
+}
+
+.research-dot-stub {
+  background: #a8392a; /* muted red, in the terra-cotta family */
+}
+
+/* ---------- Research status row (detail view) ---------- */
+/* Dot + label shown under the title. Uses the same color system as the
+   card dot but is inline, sized a touch larger with room for a readable
+   label beside it. */
+
+.research-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.research-dot-inline {
+  position: static;
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  /* Drop the absolute-position cursor from the card variant */
+  cursor: default;
+}
+
+.research-status-label {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-faded);
+}

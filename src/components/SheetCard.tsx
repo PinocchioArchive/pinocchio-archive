@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ModelSheet } from '../types/schema';
 import { resolutionTier } from '../lib/image';
-import { formatSequenceParts } from '../lib/sheets';
+import { formatSequenceParts, computeResearchStatus } from '../lib/sheets';
 import { toggleSheetInList, createList, type UserList } from '../lib/lists';
 import { useDialog } from './Dialog';
 
@@ -30,6 +30,7 @@ export function SheetCard({
 }: Props) {
   const imageSrc = sheet.image_file ? `${imageBase}${sheet.image_file}` : '';
   const tier = resolutionTier(sheet.image_width, sheet.image_height);
+  const researchStatus = computeResearchStatus(sheet);
   const { promptDialog } = useDialog();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -332,6 +333,17 @@ export function SheetCard({
         </h3>
         <TagPile sheet={sheet} />
       </div>
+      <span
+        className={`research-dot research-dot-${researchStatus}`}
+        title={
+          researchStatus === 'complete'
+            ? 'Record complete — key scholarly fields populated'
+            : researchStatus === 'some'
+            ? 'Research pending — flagged or partial info'
+            : 'Stub record — minimal info, needs significant research'
+        }
+        aria-label={`Research status: ${researchStatus}`}
+      />
     </div>
   );
 }
@@ -397,8 +409,7 @@ function TagPile({ sheet }: { sheet: ModelSheet }) {
     !dateInfo &&
     sheet.characters.length === 0 &&
     !seqParts &&
-    sheet.tags.length === 0 &&
-    !sheet.needs_research
+    sheet.tags.length === 0
   ) {
     return null;
   }
@@ -450,14 +461,6 @@ function TagPile({ sheet }: { sheet: ModelSheet }) {
               <span className="tagchip-hint"> {dateInfo.hint}</span>
             )}
           </button>
-        )}
-        {sheet.needs_research && (
-          <span
-            className="tagchip tagchip-needs"
-            title="This record is flagged for more research"
-          >
-            needs research
-          </span>
         )}
       </div>
       {sheet.tags.length > 0 && (
