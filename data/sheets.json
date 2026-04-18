@@ -23,8 +23,8 @@
           "retrieved": "2026-04-18",
           "watermark": "",
           "notes": "",
-          "archive_status": "failed",
-          "archive_captured_at": "2026-04-18T06:46:44.544Z"
+          "archive_status": "pending",
+          "archive_captured_at": "2026-04-18T09:00:55.929Z"
         }
       ],
       "published_references": [],
@@ -41,7 +41,7 @@
       ],
       "notes": "",
       "created_at": "2026-04-18T05:17:44.459Z",
-      "updated_at": "2026-04-18T07:27:10.818Z",
+      "updated_at": "2026-04-18T09:01:00.119Z",
       "image_width": 900,
       "image_height": 706
     }
