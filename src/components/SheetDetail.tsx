@@ -86,43 +86,8 @@ export function SheetDetail({
         <button className="modal-close" onClick={onClose} aria-label="Close">
           ×
         </button>
-        <div className="modal-masthead">
+        <div className="modal-masthead modal-masthead-minimal">
           <span className="modal-masthead-eyebrow">View sheet</span>
-          <span className="modal-masthead-separator">·</span>
-          {onFocusInContext ? (
-            <button
-              type="button"
-              className="modal-masthead-id modal-masthead-id-button"
-              onClick={onFocusInContext}
-              title="See this sheet in context among its neighbors"
-            >
-              {sheet.id}
-            </button>
-          ) : (
-            <span className="modal-masthead-id">{sheet.id}</span>
-          )}
-          {sheet.title && (
-            <>
-              <span className="modal-masthead-separator">·</span>
-              <span
-                style={{
-                  fontFamily: 'var(--serif)',
-                  fontStyle: 'italic',
-                  fontSize: 14,
-                  color: 'var(--cream)',
-                  letterSpacing: 0,
-                  opacity: 0.9,
-                  textTransform: 'none',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  maxWidth: 400,
-                }}
-              >
-                {sheet.title}
-              </span>
-            </>
-          )}
         </div>
         <div className="modal-body">
           <div className="modal-image">
@@ -268,19 +233,52 @@ export function SheetDetail({
             </div>
           </div>
           <div className="modal-meta">
-            <div className="modal-header">
-              {onFocusInContext ? (
-                <button
-                  type="button"
-                  className="modal-id modal-id-button"
-                  onClick={onFocusInContext}
-                  title="See this sheet in context among its neighbors"
-                >
-                  {sheet.id}
-                </button>
-              ) : (
-                <div className="modal-id">{sheet.id}</div>
-              )}
+            <div className="modal-header modal-header-tight">
+              {(() => {
+                const status = computeResearchStatus(sheet);
+                const noImage =
+                  !sheet.image_file || !sheet.image_file.trim();
+                const label =
+                  status === 'complete'
+                    ? 'Record complete'
+                    : status === 'some'
+                    ? 'Research pending'
+                    : noImage
+                    ? 'Image not yet attached'
+                    : 'Needs significant research';
+                return (
+                  <div className="modal-header-credit">
+                    {onFocusInContext ? (
+                      <button
+                        type="button"
+                        className="modal-id modal-id-button"
+                        onClick={onFocusInContext}
+                        title="See this sheet in context among its neighbors"
+                      >
+                        {sheet.id}
+                      </button>
+                    ) : (
+                      <div className="modal-id">{sheet.id}</div>
+                    )}
+                    <div
+                      className="research-status-inline"
+                      title={
+                        noImage && status === 'stub'
+                          ? 'The archive is a visual record; without an attached image, this record is incomplete regardless of its metadata.'
+                          : undefined
+                      }
+                    >
+                      <span
+                        className={`research-dot research-dot-${status} research-dot-inline`}
+                        aria-hidden="true"
+                      />
+                      <span className="research-status-label-compact">
+                        {label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
               <h1 className="modal-title">
                 {sheet.title || (
                   <span
@@ -293,43 +291,15 @@ export function SheetDetail({
                   </span>
                 )}
               </h1>
-              {(() => {
-                const status = computeResearchStatus(sheet);
-                const noImage =
-                  !sheet.image_file || !sheet.image_file.trim();
-                const label =
-                  status === 'complete'
-                    ? 'Record complete'
-                    : status === 'some'
-                    ? 'Research pending'
-                    : noImage
-                    ? 'Stub record — image not yet attached'
-                    : 'Stub record — needs significant research';
-                return (
-                  <div
-                    className="research-status-row"
-                    title={
-                      noImage && status === 'stub'
-                        ? 'The archive is a visual record; without an attached image, this record is incomplete regardless of its metadata.'
-                        : undefined
-                    }
-                  >
-                    <span
-                      className={`research-dot research-dot-${status} research-dot-inline`}
-                      aria-hidden="true"
-                    />
-                    <span className="research-status-label">{label}</span>
-                  </div>
-                );
-              })()}
             </div>
 
             {(sheet.characters.length > 0 ||
               sheet.sequence_association ||
-              sheet.artist) && (
+              sheet.artist ||
+              sheet.date_on_sheet) && (
               <div className="modal-section">
-                <div className="modal-section-label">Content</div>
-                <dl>
+                <div className="modal-section-label">Details</div>
+                <dl className="modal-details">
                   {sheet.characters.length > 0 && (
                     <Field
                       label="Characters"
@@ -359,37 +329,42 @@ export function SheetDetail({
                       }
                     />
                   )}
-                  {sheet.artist && (
-                    <Field label="Artist" value={sheet.artist} />
+                  {sheet.date_on_sheet && (
+                    <Field
+                      label="Date"
+                      value={
+                        <>
+                          {sheet.date_on_sheet}
+                          {sheet.date_precision !== 'unknown' && (
+                            <span
+                              style={{
+                                fontFamily: 'var(--mono)',
+                                fontSize: 10,
+                                color: 'var(--ink-faded)',
+                                marginLeft: 6,
+                              }}
+                            >
+                              ({sheet.date_precision})
+                            </span>
+                          )}
+                        </>
+                      }
+                    />
                   )}
-                </dl>
-              </div>
-            )}
-
-            {sheet.date_on_sheet && (
-              <div className="modal-section">
-                <div className="modal-section-label">Date</div>
-                <dl>
-                  <Field
-                    label="Date on sheet"
-                    value={
-                      <>
-                        {sheet.date_on_sheet}
-                        {sheet.date_precision !== 'unknown' && (
-                          <span
-                            style={{
-                              fontFamily: 'var(--mono)',
-                              fontSize: 10,
-                              color: 'var(--ink-faded)',
-                              marginLeft: 6,
-                            }}
-                          >
-                            ({sheet.date_precision})
-                          </span>
-                        )}
-                      </>
-                    }
-                  />
+                  {sheet.artist && (
+                    <Field
+                      label="Artist"
+                      value={
+                        sheet.artist === 'Unknown' ? (
+                          <em style={{ color: 'var(--ink-faded)' }}>
+                            Unknown
+                          </em>
+                        ) : (
+                          sheet.artist
+                        )
+                      }
+                    />
+                  )}
                 </dl>
               </div>
             )}
@@ -635,151 +610,246 @@ export function SheetDetail({
                       gap: 10,
                     }}
                   >
-                    {sheet.image_sources.map((s, i) => {
-                      // Prefer showing the original URL as the primary link.
-                      // Wayback is a preservation badge attached to it, not a
-                      // separate equal link. If there's no original URL but
-                      // there is an archive_url, the Wayback URL becomes the
-                      // primary link.
-                      const primaryHref = s.url || s.archive_url;
-                      const displayUrl = s.url || s.archive_url || '';
-                      // Trim to something readable — full URLs on list items
-                      // hurt scanability. Show protocol-less, path-clipped.
-                      const displayShort = displayUrl
-                        .replace(/^https?:\/\//, '')
-                        .replace(/^www\./, '')
-                        .slice(0, 60) + (displayUrl.length > 60 ? '…' : '');
-                      const statusIcon =
-                        s.archive_status === 'verified'
-                          ? '✓'
-                          : s.archive_status === 'pending'
-                          ? '…'
-                          : s.archive_status === 'failed'
-                          ? '?'
-                          : null;
-                      const statusColor =
-                        s.archive_status === 'verified'
-                          ? 'var(--success)'
-                          : s.archive_status === 'pending'
-                          ? 'var(--warn)'
-                          : s.archive_status === 'failed'
-                          ? 'var(--danger)'
-                          : 'var(--ink-faded)';
-                      const statusTitle =
-                        s.archive_status === 'verified'
-                          ? 'Wayback snapshot verified'
-                          : s.archive_status === 'pending'
-                          ? 'Wayback capture pending verification'
-                          : s.archive_status === 'failed'
-                          ? 'Wayback API reports unavailable (may be wrong)'
-                          : 'Not yet archived';
-                      return (
-                        <li
-                          key={i}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 2,
-                          }}
-                        >
-                          <div
+                    {(() => {
+                      // Group sources that share the same underlying URL.
+                      // Rationale: two source entries pointing at the same
+                      // vegalleries.com URL are redundant on display —
+                      // they should render as one block crediting both
+                      // source names, not as two stacked entries with
+                      // identical links. Underlying data is unchanged;
+                      // this is a display-only consolidation.
+                      //
+                      // Normalization: strip protocol, strip trailing
+                      // slash, lowercase. Two URLs that differ only in
+                      // case or http/https prefix are treated as the
+                      // same source.
+                      const normalize = (u?: string) =>
+                        (u || '')
+                          .trim()
+                          .toLowerCase()
+                          .replace(/^https?:\/\//, '')
+                          .replace(/\/$/, '');
+                      type Group = {
+                        key: string;
+                        sources: typeof sheet.image_sources;
+                      };
+                      const groups: Group[] = [];
+                      const keyToIdx = new Map<string, number>();
+                      for (const src of sheet.image_sources) {
+                        // Group on the best available URL; entries
+                        // with no URL at all each get their own group
+                        // keyed by their index so they stay distinct.
+                        const u = normalize(src.url || src.archive_url);
+                        const key =
+                          u || `__no-url-${groups.length}`;
+                        const existing = keyToIdx.get(key);
+                        if (existing !== undefined) {
+                          groups[existing].sources.push(src);
+                        } else {
+                          keyToIdx.set(key, groups.length);
+                          groups.push({ key, sources: [src] });
+                        }
+                      }
+                      return groups.map((group, gi) => {
+                        // Merge the group's metadata for display:
+                        // - source_name: join all unique names
+                        // - primary URL: first non-empty s.url, else
+                        //   first archive_url
+                        // - archive_url: first s.archive_url present
+                        // - retrieved: most recent retrieved date
+                        // - notes: concatenate any notes with a
+                        //   separator so neither is lost
+                        // - archive_status: most-confident status
+                        //   (verified > pending > failed > not_attempted)
+                        const names = Array.from(
+                          new Set(
+                            group.sources
+                              .map((s) => s.source_name || s.source_type)
+                              .filter(Boolean)
+                          )
+                        );
+                        const primary = group.sources.find((s) => s.url);
+                        const archived = group.sources.find(
+                          (s) => s.archive_url
+                        );
+                        const primaryHref =
+                          primary?.url || archived?.archive_url;
+                        const displayUrl =
+                          primary?.url || archived?.archive_url || '';
+                        const displayShort =
+                          displayUrl
+                            .replace(/^https?:\/\//, '')
+                            .replace(/^www\./, '')
+                            .slice(0, 60) +
+                          (displayUrl.length > 60 ? '…' : '');
+                        // Pick the most confident archive status across
+                        // the group.
+                        const statusRank: Record<string, number> = {
+                          verified: 4,
+                          pending: 3,
+                          failed: 2,
+                          not_attempted: 1,
+                        };
+                        const bestStatus = group.sources.reduce(
+                          (best, s) => {
+                            const cur = s.archive_status || 'not_attempted';
+                            return (statusRank[cur] || 0) >
+                              (statusRank[best] || 0)
+                              ? cur
+                              : best;
+                          },
+                          'not_attempted' as string
+                        );
+                        const statusIcon =
+                          bestStatus === 'verified'
+                            ? '✓'
+                            : bestStatus === 'pending'
+                            ? '…'
+                            : bestStatus === 'failed'
+                            ? '?'
+                            : null;
+                        const statusColor =
+                          bestStatus === 'verified'
+                            ? 'var(--success)'
+                            : bestStatus === 'pending'
+                            ? 'var(--warn)'
+                            : bestStatus === 'failed'
+                            ? 'var(--danger)'
+                            : 'var(--ink-faded)';
+                        const statusTitle =
+                          bestStatus === 'verified'
+                            ? 'Wayback snapshot verified'
+                            : bestStatus === 'pending'
+                            ? 'Wayback capture pending verification'
+                            : bestStatus === 'failed'
+                            ? 'Wayback API reports unavailable (may be wrong)'
+                            : 'Not yet archived';
+                        // Most recent retrieval date across the group.
+                        const retrieved = group.sources
+                          .map((s) => s.retrieved)
+                          .filter((r): r is string => !!r)
+                          .sort()
+                          .pop();
+                        const allNotes = group.sources
+                          .map((s) => s.notes)
+                          .filter((n): n is string => !!n && !!n.trim())
+                          .join(' · ');
+                        const hasArchive = !!archived?.archive_url;
+                        const hasOriginal = !!primary?.url;
+                        return (
+                          <li
+                            key={group.key + gi}
                             style={{
-                              fontWeight: 600,
-                              fontSize: 14,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 2,
                             }}
                           >
-                            {s.source_name || s.source_type}
-                          </div>
-                          {primaryHref && (
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'baseline',
-                                flexWrap: 'wrap',
-                                gap: 8,
-                                fontSize: 12,
-                              }}
-                            >
-                              <a
-                                href={primaryHref}
-                                target="_blank"
-                                rel="noreferrer"
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>
+                              {names.join(' / ')}
+                              {group.sources.length > 1 && (
+                                <span
+                                  style={{
+                                    fontFamily: 'var(--mono)',
+                                    fontSize: 9,
+                                    letterSpacing: '0.1em',
+                                    textTransform: 'uppercase',
+                                    color: 'var(--ink-faded)',
+                                    marginLeft: 8,
+                                    fontWeight: 400,
+                                  }}
+                                  title={`${group.sources.length} source entries point to this URL`}
+                                >
+                                  ×{group.sources.length}
+                                </span>
+                              )}
+                            </div>
+                            {primaryHref && (
+                              <div
                                 style={{
-                                  color: 'var(--accent)',
-                                  fontFamily: 'var(--mono)',
-                                  textDecoration: 'underline',
+                                  display: 'flex',
+                                  alignItems: 'baseline',
+                                  flexWrap: 'wrap',
+                                  gap: 8,
+                                  fontSize: 12,
                                 }}
-                                title={displayUrl}
                               >
-                                {displayShort}
-                              </a>
-                              {s.archive_url && s.url && (
-                                // Small Wayback badge — secondary access
-                                // point to the preserved snapshot of the
-                                // same URL.
                                 <a
-                                  href={s.archive_url}
+                                  href={primaryHref}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="provenance-wayback-badge"
-                                  title={statusTitle}
+                                  style={{
+                                    color: 'var(--accent)',
+                                    fontFamily: 'var(--mono)',
+                                    textDecoration: 'underline',
+                                  }}
+                                  title={displayUrl}
                                 >
-                                  Wayback
-                                  {statusIcon && (
-                                    <span
-                                      style={{
-                                        color: statusColor,
-                                        marginLeft: 4,
-                                        fontFamily: 'var(--mono)',
-                                      }}
-                                    >
-                                      {statusIcon}
-                                    </span>
-                                  )}
+                                  {displayShort}
                                 </a>
-                              )}
-                              {!s.url && s.archive_url && statusIcon && (
-                                // Primary link is already Wayback; show
-                                // just the verification icon next to it.
-                                <span
-                                  style={{
-                                    color: statusColor,
-                                    fontFamily: 'var(--mono)',
-                                    fontSize: 10,
-                                  }}
-                                  title={statusTitle}
-                                >
-                                  {statusIcon}
-                                </span>
-                              )}
-                              {s.retrieved && (
-                                <span
-                                  style={{
-                                    color: 'var(--ink-faded)',
-                                    fontFamily: 'var(--mono)',
-                                    fontSize: 11,
-                                  }}
-                                >
-                                  ret. {s.retrieved}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {s.notes && (
-                            <div
-                              style={{
-                                color: 'var(--ink-faded)',
-                                fontSize: 12,
-                                fontStyle: 'italic',
-                                marginTop: 2,
-                              }}
-                            >
-                              {s.notes}
-                            </div>
-                          )}
-                        </li>
-                      );
-                    })}
+                                {hasArchive && hasOriginal && (
+                                  <a
+                                    href={archived!.archive_url!}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="provenance-wayback-badge"
+                                    title={statusTitle}
+                                  >
+                                    Wayback
+                                    {statusIcon && (
+                                      <span
+                                        style={{
+                                          color: statusColor,
+                                          marginLeft: 4,
+                                          fontFamily: 'var(--mono)',
+                                        }}
+                                      >
+                                        {statusIcon}
+                                      </span>
+                                    )}
+                                  </a>
+                                )}
+                                {!hasOriginal && hasArchive && statusIcon && (
+                                  <span
+                                    style={{
+                                      color: statusColor,
+                                      fontFamily: 'var(--mono)',
+                                      fontSize: 10,
+                                    }}
+                                    title={statusTitle}
+                                  >
+                                    {statusIcon}
+                                  </span>
+                                )}
+                                {retrieved && (
+                                  <span
+                                    style={{
+                                      color: 'var(--ink-faded)',
+                                      fontFamily: 'var(--mono)',
+                                      fontSize: 11,
+                                    }}
+                                  >
+                                    ret. {retrieved}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {allNotes && (
+                              <div
+                                style={{
+                                  color: 'var(--ink-faded)',
+                                  fontSize: 12,
+                                  fontStyle: 'italic',
+                                  marginTop: 2,
+                                }}
+                              >
+                                {allNotes}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      });
+                    })()}
                   </ul>
                 </>
               )}

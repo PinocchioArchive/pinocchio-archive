@@ -783,6 +783,53 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
   padding-bottom: 20px;
 }
 
+/* Tight header variant — used in the restructured detail view. The ID
+   pill and research-status dot live on a single row (the "credit
+   line"), with the title as the full-weight headline below. This
+   replaces the old three-row stacked layout (ID pill, title, status
+   text on its own row) which ate too much vertical space. */
+.modal-header-tight {
+  padding-bottom: 14px;
+  margin-bottom: 10px;
+}
+
+.modal-header-credit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.modal-header-tight .modal-id {
+  margin-bottom: 0;
+}
+
+.modal-header-tight .modal-title {
+  margin-top: 4px;
+}
+
+/* Compact inline version of the research-status row for the tight
+   header. Dot + label in a single line with ink-faded label; drops
+   the padding that the old row had. */
+.research-status-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ink-faded);
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+}
+
+.research-status-label-compact {
+  color: var(--ink-faded);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
 .modal-id {
   font-family: var(--mono);
   font-size: 11px;
@@ -830,28 +877,39 @@ input, select, textarea { font-family: inherit; font-size: inherit; }
 
 .modal-section-label {
   font-family: var(--serif);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
   color: var(--ink-soft);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .modal-section {
-  padding-bottom: 12px;
-  margin-bottom: 2px;
-  border-bottom: 1px solid rgba(201, 190, 166, 0.25);
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(201, 190, 166, 0.2);
 }
 
-.modal-section:last-of-type { border-bottom: none; }
+.modal-section:last-of-type { border-bottom: none; margin-bottom: 0; }
+
+/* Compact details block — used for the merged Content/Date/Artist
+   section. Each label-value pair renders as a tight row rather than
+   a full section of its own, giving the detail panel a denser,
+   catalog-card feel without losing legibility. */
+.modal-details {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
 .modal-field {
   display: grid;
-  grid-template-columns: 130px 1fr;
+  grid-template-columns: 110px 1fr;
   gap: 14px;
-  margin-bottom: 8px;
-  font-size: 14px;
+  margin-bottom: 4px;
+  font-size: 13px;
   line-height: 1.45;
   align-items: baseline;
 }
