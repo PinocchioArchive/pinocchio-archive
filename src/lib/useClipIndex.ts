@@ -6,6 +6,7 @@ import {
   readCachedEmbedding,
   writeCachedEmbedding,
   getClipPipeline,
+  isClipReady,
   onModelLoadProgress,
   hasClipConsent,
   type LoadProgress,
@@ -69,11 +70,18 @@ export function useClipIndex(data: ArchiveData | null, imageBase: string) {
     if (status === 'indexing' || status === 'loading-model') return;
     cancelRef.current = false;
     setError(null);
-    setStatus('loading-model');
 
-    onModelLoadProgress((p) => {
-      setLoadProgress(p);
-    });
+    // If the pipeline is already loaded from a previous indexing
+    // run, skip the loading-model status and its progress UI —
+    // re-showing "Loading model" after the user already waited
+    // through it once would be confusing.
+    const modelAlreadyLoaded = isClipReady();
+    if (!modelAlreadyLoaded) {
+      setStatus('loading-model');
+      onModelLoadProgress((p) => {
+        setLoadProgress(p);
+      });
+    }
 
     try {
       await getClipPipeline();
@@ -147,22 +155,57 @@ export function useClipIndex(data: ArchiveData | null, imageBase: string) {
   // can execute without further model-loading delay?
   const modelReady = status === 'ready' || status === 'indexing';
 
-  // Auto-start indexing if the user previously gave consent. Runs
-  // once after the seed effect populates whatever embeddings are
-  // already on hand. This means returning users skip the consent
-  // step and start indexing automatically in the background.
+  // Auto-start and continuous re-indexing.
+  //
+  // We want three behaviors wrapped into one effect:
+  //   1. First-ever run for a consented user: index everything.
+  //   2. Return visit: if new sheets have appeared since the last
+  //      session, embed the newcomers (older sheets come from cache).
+  //   3. Live re-indexing: if the user adds a sheet while the app
+  //      is open and status is already 'ready', notice the new
+  //      sheet and kick off another indexing pass.
+  //
+  // The predicate `hasUnindexed` is the shared core: any sheet that
+  // has an image file but no embedding (neither on the record nor in
+  // the in-memory index) is a candidate for indexing. When that's
+  // true AND the user has consented AND we're not already indexing
+  // or loading, we trigger a run.
+  //
+  // Note: loading-model and indexing are in-flight states — we leave
+  // them alone. 'error' is also left alone so we don't auto-retry a
+  // broken pipeline on every data change; user can manually retry.
   useEffect(() => {
     if (!data) return;
-    if (status !== 'idle') return;
     if (!hasClipConsent()) return;
-    // Small delay so the consent auto-start doesn't interfere with
-    // the initial paint of the app.
+    if (status === 'loading-model' || status === 'indexing') return;
+    if (status === 'error') return;
+
+    // Are there any hashable sheets without an embedding?
+    const hasUnindexed = data.sheets.some(
+      (s) =>
+        s.image_file &&
+        s.image_file.trim() &&
+        !index.has(s.id) &&
+        !s.image_embedding
+    );
+    if (!hasUnindexed) return;
+
+    // Delay so we don't thrash during rapid state churn (e.g., a
+    // batch import that fires many `setData` calls in quick
+    // succession). 1.5s on initial mount, 600ms on subsequent
+    // re-triggers — enough to coalesce bursts.
+    const delay = status === 'idle' ? 1500 : 600;
     const t = setTimeout(() => {
       void startIndex();
-    }, 1500);
+    }, delay);
     return () => clearTimeout(t);
+    // We deliberately list `data` (not `data.sheets`) so the effect
+    // re-runs whenever the archive object is replaced — including
+    // after edits, additions, and reloads. `index` is included so
+    // the hasUnindexed predicate re-evaluates when embeddings finish
+    // populating.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, status]);
+  }, [data, status, index.size]);
 
   return {
     index,
