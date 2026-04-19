@@ -298,21 +298,21 @@ export default function App() {
             if (sourceIdx < 0) return current; // source was removed
             const sources = (sheet.image_sources || []).slice();
             // Only update if still pending — if user manually changed it,
-            // respect that
+            // respect that.
+            //
+            // We update archive_status only. Previously this path also
+            // wrote a `[auto] ...` note into the source's `notes` field,
+            // but the notes field is for scholarly user annotation and
+            // polluting it with auto-diagnostics mixed two separate
+            // concerns. The archive_status alone (plus its hover
+            // tooltip) carries the diagnostic without side-effects on
+            // user data. A migration elsewhere strips pre-existing
+            // [auto] notes from older records.
             if (sources[sourceIdx].archive_status !== 'pending') return current;
-            // Preserve the reverify note if present. Append rather than
-            // overwrite so any note the user had typed stays visible too.
-            const existingNotes = sources[sourceIdx].notes || '';
-            const mergedNotes = outcome.note
-              ? existingNotes
-                ? `${existingNotes}\n\n[auto] ${outcome.note}`
-                : `[auto] ${outcome.note}`
-              : existingNotes;
             sources[sourceIdx] = {
               ...sources[sourceIdx],
               archive_status: outcome.archive_status,
               archive_url: outcome.archive_url || sources[sourceIdx].archive_url,
-              ...(outcome.note ? { notes: mergedNotes } : {}),
             };
             const sheets = current.sheets.slice();
             sheets[sheetIdx] = { ...sheet, image_sources: sources };

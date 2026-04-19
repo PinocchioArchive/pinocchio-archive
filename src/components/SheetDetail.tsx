@@ -673,7 +673,11 @@ export function SheetDetail({
                           (s) => s.archive_url
                         );
                         // Pick the most confident archive status across
-                        // the group.
+                        // the group. Only used to compose the Wayback
+                        // chip's hover tooltip — the status is no longer
+                        // shown visually on the chip itself (the "?" for
+                        // failed-API reads as a problem signal even
+                        // though the link almost always works).
                         const statusRank: Record<string, number> = {
                           verified: 4,
                           pending: 3,
@@ -690,30 +694,14 @@ export function SheetDetail({
                           },
                           'not_attempted' as string
                         );
-                        const statusIcon =
-                          bestStatus === 'verified'
-                            ? '✓'
-                            : bestStatus === 'pending'
-                            ? '…'
-                            : bestStatus === 'failed'
-                            ? '?'
-                            : null;
-                        const statusColor =
-                          bestStatus === 'verified'
-                            ? 'var(--success)'
-                            : bestStatus === 'pending'
-                            ? 'var(--warn)'
-                            : bestStatus === 'failed'
-                            ? 'var(--danger)'
-                            : 'var(--ink-faded)';
                         const statusTitle =
                           bestStatus === 'verified'
-                            ? 'Wayback snapshot verified'
+                            ? 'verified'
                             : bestStatus === 'pending'
-                            ? 'Wayback capture pending verification'
+                            ? 'capture pending verification'
                             : bestStatus === 'failed'
-                            ? 'Wayback API reports unavailable (may be wrong)'
-                            : 'Not yet archived';
+                            ? 'API reports unavailable (link may still work)'
+                            : 'not yet archived';
                         // Most recent retrieval date across the group.
                         const retrieved = group.sources
                           .map((s) => s.retrieved)
@@ -779,33 +767,30 @@ export function SheetDetail({
                                 )}
                                 {hasArchive && (
                                   // Always present the Wayback link when an
-                                  // archive_url exists, regardless of the
-                                  // Availability API's verification verdict.
-                                  // The API returns false negatives often
-                                  // enough that treating its "failed" as
-                                  // definitive would hide working links.
-                                  // The deterministic archive_url
+                                  // archive_url exists. The Wayback
+                                  // Availability API returns false negatives
+                                  // often enough that treating its "failed"
+                                  // verdict as definitive would hide working
+                                  // links. The deterministic archive_url
                                   // (web.archive.org/web/{original}) resolves
-                                  // to the latest snapshot when clicked, so
-                                  // trust the user's click over the API.
+                                  // to the latest snapshot when clicked.
+                                  //
+                                  // We used to show an inline ?/…/✓ status
+                                  // indicator on the chip; removed because
+                                  // the "?" was reading as a problem signal
+                                  // even though the link almost always works.
+                                  // Status is still preserved in the data
+                                  // and visible via the chip's hover tooltip
+                                  // for anyone who wants to audit.
                                   <a
                                     href={archived!.archive_url!}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className={`provenance-link-chip provenance-link-chip-wayback provenance-link-chip-${bestStatus}`}
+                                    className="provenance-link-chip provenance-link-chip-wayback"
                                     title={`Wayback Machine snapshot — ${statusTitle}`}
                                   >
                                     <span className="provenance-link-icon">↗</span>
                                     Wayback
-                                    {statusIcon && (
-                                      <span
-                                        className="provenance-link-status"
-                                        style={{ color: statusColor }}
-                                        aria-label={statusTitle}
-                                      >
-                                        {statusIcon}
-                                      </span>
-                                    )}
                                   </a>
                                 )}
                                 {retrieved && (

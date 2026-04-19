@@ -229,8 +229,27 @@ export function migrateArchive(raw: any): ArchiveData {
         // information the user had there should be captured in
         // sheet_marks (the new field) or moved to the source's notes.
         const { watermark: _discarded, ...rest } = src;
+        // Strip `[auto]` diagnostic notes that an earlier code path
+        // wrote into the source's `notes` field (e.g., "[auto] No
+        // snapshot available for this URL"). Those were auto-
+        // generated diagnostic messages that should never have lived
+        // in the user's scholarly notes field. The auto-reverify
+        // logic no longer writes these, but existing records may
+        // still have them. Removes lines starting with `[auto]` and
+        // any blank separator lines left behind.
+        let cleanedNotes = rest.notes;
+        if (typeof cleanedNotes === 'string') {
+          cleanedNotes = cleanedNotes
+            .split('\n')
+            .filter((line: string) => !line.trim().startsWith('[auto]'))
+            .join('\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+          if (!cleanedNotes) cleanedNotes = undefined;
+        }
         return {
           ...rest,
+          notes: cleanedNotes,
           // v4 → v5: add archive_status default for existing sources.
           archive_status: src.archive_status ?? 'not_attempted',
         };
