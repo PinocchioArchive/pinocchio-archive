@@ -45,6 +45,7 @@ import { VocabularyHealth } from './components/VocabularyHealth';
 import { useVocabulary } from './components/VocabularyProvider';
 import { ImageSearchModal } from './components/ImageSearchModal';
 import { useImageHashIndex } from './lib/useImageHashIndex';
+import { useClipIndex } from './lib/useClipIndex';
 
 type SortMode =
   | 'number'
@@ -136,6 +137,19 @@ export default function App() {
     progress: hashProgress,
     ready: hashReady,
   } = useImageHashIndex(data, BASE);
+  // CLIP deep-search index — opt-in, caller controls start. Model is
+  // ~90MB and users should only download it if they want the feature.
+  // Once triggered the first time (via modal consent), subsequent
+  // sessions auto-start because consent is persisted.
+  const {
+    index: clipIndex,
+    status: clipStatus,
+    progress: clipProgress,
+    loadProgress: clipLoadProgress,
+    error: clipError,
+    modelReady: clipModelReady,
+    startIndex: startClipIndex,
+  } = useClipIndex(data, BASE);
   // Select mode toggles checkboxes on cards; in this mode clicking a card
   // toggles selection rather than opening the detail view. Used for
   // bulk "add to list" operations.
@@ -1719,6 +1733,13 @@ export default function App() {
             setShowImageSearch(false);
             setSelectedId(id);
           }}
+          clipIndex={clipIndex}
+          clipStatus={clipStatus}
+          clipProgress={clipProgress}
+          clipLoadProgress={clipLoadProgress}
+          clipError={clipError}
+          clipModelReady={clipModelReady}
+          onStartClipIndex={startClipIndex}
         />
       )}
 

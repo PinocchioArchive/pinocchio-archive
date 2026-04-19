@@ -7,6 +7,16 @@ import {
   type HashMatch,
   type MatchTier,
 } from '../lib/imageMatching';
+import {
+  computeClipEmbedding,
+  rankClipMatches,
+  hasClipConsent,
+  setClipConsent,
+  type ClipMatch,
+  type ClipMatchTier,
+  type LoadProgress,
+} from '../lib/clipMatching';
+import type { ClipIndexStatus } from '../lib/useClipIndex';
 
 interface Props {
   sheets: ModelSheet[];
@@ -16,15 +26,30 @@ interface Props {
   imageBase: string;
   onClose: () => void;
   onSelectMatch: (sheetId: string) => void;
+  // CLIP (Phase B) — semantic similarity for stylized / partial-match
+  // cases that pHash misses. Caller-owned; hook is in App.tsx.
+  clipIndex: Map<string, Float32Array>;
+  clipStatus: ClipIndexStatus;
+  clipProgress: { done: number; total: number };
+  clipLoadProgress: LoadProgress | null;
+  clipError: string | null;
+  clipModelReady: boolean;
+  onStartClipIndex: () => void;
 }
 
 // Search the archive by image similarity. The user drops, pastes, or
-// picks an image; the modal computes its perceptual hash, ranks the
+// picks an image; the modal computes a perceptual hash, ranks the
 // archive against it, and shows matches tiered by confidence.
 //
-// This is Phase A (pHash only). The "Deep match" control is wired as
-// a disabled-with-coming-soon placeholder for Phase B (CLIP
-// embeddings), which ship in a subsequent session.
+// Two-stage search:
+//   - Primary: pHash (fast, catches exact and near-exact duplicates)
+//   - Fallback: CLIP embeddings (slower, catches stylized / semantic
+//     similarity — the merch-check case where a figure has been
+//     redrawn for a lunchbox or book illustration)
+//
+// The fallback is offered as a "Try deeper search" button when pHash
+// returns nothing, or can be invoked directly if the user knows the
+// query image is stylized.
 
 export function ImageSearchModal({
   sheets,
@@ -34,6 +59,13 @@ export function ImageSearchModal({
   imageBase,
   onClose,
   onSelectMatch,
+  clipIndex,
+  clipStatus,
+  clipProgress,
+  clipLoadProgress,
+  clipError,
+  clipModelReady: _clipModelReady,
+  onStartClipIndex,
 }: Props) {
   const [queryFile, setQueryFile] = useState<File | null>(null);
   const [queryPreview, setQueryPreview] = useState<string | null>(null);
@@ -42,6 +74,11 @@ export function ImageSearchModal({
   const [error, setError] = useState<string | null>(null);
   const [computing, setComputing] = useState(false);
   const [dragging, setDragging] = useState(false);
+  // CLIP state — embedding of the current query, matches, and a flag
+  // for "the user asked for deep search, do it now."
+  const [clipMatches, setClipMatches] = useState<ClipMatch[] | null>(null);
+  const [clipComputing, setClipComputing] = useState(false);
+  const [showConsentPrompt, setShowConsentPrompt] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Revoke blob URL on unmount / replacement.
@@ -76,6 +113,7 @@ export function ImageSearchModal({
   const handleFile = async (file: File) => {
     setError(null);
     setMatches(null);
+    setClipMatches(null);
     setQueryFile(file);
     if (queryPreview && queryPreview.startsWith('blob:')) {
       URL.revokeObjectURL(queryPreview);
@@ -119,6 +157,64 @@ export function ImageSearchModal({
       setError('Drop an image file to search.');
     }
   };
+
+  // Run a CLIP deep-search for the current query image.
+  // Assumes the model/index is either ready or will load when asked.
+  const runDeepSearch = async () => {
+    if (!queryFile) return;
+    setClipComputing(true);
+    setError(null);
+    try {
+      // If the user hasn't consented and indexing hasn't started,
+      // surface the consent prompt instead of silently triggering a
+      // ~90MB download.
+      if (
+        clipStatus === 'idle' &&
+        !hasClipConsent() &&
+        !showConsentPrompt
+      ) {
+        setShowConsentPrompt(true);
+        setClipComputing(false);
+        return;
+      }
+      const vec = await computeClipEmbedding(queryFile);
+      if (!vec) {
+        setError('Deep search could not embed the query image.');
+        setClipComputing(false);
+        return;
+      }
+      const ranked = rankClipMatches(vec, clipIndex);
+      setClipMatches(ranked);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setClipComputing(false);
+    }
+  };
+
+  // User accepts the consent prompt → persist consent, kick off
+  // indexing (which triggers the model download), then run deep
+  // search for the current query as soon as possible.
+  const acceptConsentAndIndex = async () => {
+    setClipConsent(true);
+    setShowConsentPrompt(false);
+    onStartClipIndex();
+    // The model load + indexing is non-blocking; we poll the query
+    // once the pipeline is ready. Simpler: just retry runDeepSearch
+    // after a short wait; if the model still isn't ready, the user
+    // sees the loading state and can retry.
+    setTimeout(() => {
+      void runDeepSearch();
+    }, 100);
+  };
+
+  // Should we automatically offer "Try deeper search"? Yes when
+  // pHash returned nothing useful for the query (no matches, or only
+  // weak ones below the "related" tier).
+  const phashInsufficient =
+    matches !== null &&
+    (matches.length === 0 ||
+      matches.every((m) => m.tier === 'distant'));
 
   const sheetById = new Map(sheets.map((s) => [s.id, s]));
 
@@ -312,6 +408,191 @@ export function ImageSearchModal({
               onSelect={onSelectMatch}
             />
           )}
+
+          {/* Deep search (CLIP) — offered as a fallback when pHash
+              returns nothing, or as an explicit opt-in for stylized
+              queries like merchandise. The button always appears
+              once a query has been analyzed, not just when pHash
+              is insufficient, because sometimes the user wants to
+              verify a suspicious match or find stylized variations
+              that pHash did surface at "related" tier. */}
+          {queryFile && !computing && matches !== null && (
+            <div
+              style={{
+                marginTop: 24,
+                paddingTop: 20,
+                borderTop: '1px solid var(--rule)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div>
+                  <h2
+                    style={{
+                      fontFamily: 'var(--serif)',
+                      fontWeight: 400,
+                      fontStyle: 'italic',
+                      fontSize: 18,
+                      margin: '0 0 4px',
+                    }}
+                  >
+                    Deep search
+                  </h2>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--ink-faded)',
+                      lineHeight: 1.5,
+                      maxWidth: 560,
+                    }}
+                  >
+                    {phashInsufficient
+                      ? 'Fingerprint search found nothing useful. A neural-embedding search can catch partial crops and stylized redrawings — useful for checking merchandise derived from a sheet.'
+                      : 'Uses a neural model to find sheets similar to the query by visual concept rather than pixel match. Catches stylized merchandise and partial figure use that fingerprint search misses.'}
+                  </div>
+                </div>
+                <button
+                  className="btn btn-filled"
+                  onClick={runDeepSearch}
+                  disabled={clipComputing || clipStatus === 'loading-model'}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  {clipComputing || clipStatus === 'loading-model'
+                    ? 'Searching…'
+                    : clipStatus === 'ready' || clipStatus === 'indexing'
+                    ? 'Run deep search'
+                    : 'Try deeper search'}
+                </button>
+              </div>
+
+              {/* First-use consent prompt — download warning. */}
+              {showConsentPrompt && (
+                <div
+                  className="notice"
+                  style={{
+                    marginTop: 12,
+                    borderLeftColor: 'var(--warn)',
+                    background: 'rgba(168, 122, 58, 0.05)',
+                    padding: '12px 14px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontFamily: 'var(--serif)',
+                      fontWeight: 600,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Enable deep search? This downloads a ~90MB neural model.
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--ink-soft)',
+                      lineHeight: 1.5,
+                      marginBottom: 10,
+                    }}
+                  >
+                    The model runs entirely in your browser — no images are
+                    uploaded anywhere. Your browser caches the weights so the
+                    download only happens once. Re-indexing the archive takes
+                    a few minutes on first use; subsequent searches are fast.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="btn btn-filled"
+                      onClick={acceptConsentAndIndex}
+                    >
+                      Download model and index
+                    </button>
+                    <button
+                      className="btn"
+                      onClick={() => setShowConsentPrompt(false)}
+                    >
+                      Not now
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Model loading progress (after consent or on return visits) */}
+              {clipStatus === 'loading-model' && clipLoadProgress && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    fontFamily: 'var(--mono)',
+                    fontSize: 11,
+                    color: 'var(--ink-faded)',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  Loading model: {clipLoadProgress.status}
+                  {clipLoadProgress.percent !== null &&
+                    ` (${clipLoadProgress.percent}%)`}
+                  {clipLoadProgress.file && (
+                    <span
+                      style={{ color: 'var(--ink-faded)', marginLeft: 6 }}
+                    >
+                      · {clipLoadProgress.file}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Embedding-indexing progress */}
+              {clipStatus === 'indexing' && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    fontFamily: 'var(--mono)',
+                    fontSize: 11,
+                    color: 'var(--ink-faded)',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  Embedding archive images: {clipProgress.done}/
+                  {clipProgress.total}. Search improves as more sheets
+                  finish embedding.
+                </div>
+              )}
+
+              {/* Error during CLIP */}
+              {clipError && clipStatus === 'error' && (
+                <div
+                  className="notice"
+                  style={{
+                    marginTop: 10,
+                    borderLeftColor: 'var(--danger)',
+                    color: 'var(--danger)',
+                    fontSize: 12,
+                  }}
+                >
+                  Deep search failed: {clipError}
+                </div>
+              )}
+
+              {/* CLIP match results */}
+              {clipMatches !== null && !clipComputing && (
+                <ClipMatchResults
+                  matches={clipMatches}
+                  sheetById={sheetById}
+                  imageBase={imageBase}
+                  onSelect={onSelectMatch}
+                  indexSize={clipIndex.size}
+                  totalSheets={sheets.filter(
+                    (s) => s.image_file && s.image_file.trim()
+                  ).length}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -449,6 +730,169 @@ function MatchResults({
                         <div className="image-search-result-sim">
                           {m.similarity}%
                         </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+      )}
+    </div>
+  );
+}
+
+function ClipMatchResults({
+  matches,
+  sheetById,
+  imageBase,
+  onSelect,
+  indexSize,
+  totalSheets,
+}: {
+  matches: ClipMatch[];
+  sheetById: Map<string, ModelSheet>;
+  imageBase: string;
+  onSelect: (id: string) => void;
+  indexSize: number;
+  totalSheets: number;
+}) {
+  // Tier labeling is distinct from pHash — CLIP similarities are
+  // cosine-based floats 0-1, not Hamming distances. Labels describe
+  // what each band typically means for this use case.
+  const tierLabel: Record<ClipMatchTier, string> = {
+    'very-high': 'Very high similarity — probable direct match',
+    high: 'High similarity — likely derivative or variant',
+    moderate: 'Moderate similarity — related composition or figure',
+    weak: 'Weak similarity — thin connection, browse with care',
+  };
+
+  if (matches.length === 0) {
+    return (
+      <div
+        style={{
+          marginTop: 16,
+          padding: '18px 0',
+          textAlign: 'center',
+          color: 'var(--ink-faded)',
+          fontStyle: 'italic',
+          fontSize: 14,
+        }}
+      >
+        No semantically similar sheets in the archive.
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: 11,
+            fontFamily: 'var(--mono)',
+            letterSpacing: '0.05em',
+            fontStyle: 'normal',
+          }}
+        >
+          Searched {indexSize} of {totalSheets} indexed sheets.
+        </div>
+      </div>
+    );
+  }
+
+  const byTier: Record<ClipMatchTier, ClipMatch[]> = {
+    'very-high': [],
+    high: [],
+    moderate: [],
+    weak: [],
+  };
+  for (const m of matches) byTier[m.tier].push(m);
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          gap: 10,
+          marginBottom: 10,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--mono)',
+            fontSize: 10,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'var(--ink-faded)',
+          }}
+        >
+          Deep search · {matches.length} result{matches.length === 1 ? '' : 's'}
+        </div>
+        <div
+          style={{
+            fontSize: 11,
+            color: 'var(--ink-faded)',
+            fontFamily: 'var(--mono)',
+          }}
+        >
+          ({indexSize}/{totalSheets} indexed)
+        </div>
+      </div>
+      {(['very-high', 'high', 'moderate', 'weak'] as ClipMatchTier[]).map(
+        (tier) => {
+          const items = byTier[tier];
+          if (items.length === 0) return null;
+          return (
+            <div key={tier} style={{ marginBottom: 18 }}>
+              <div className="modal-section-label" style={{ marginBottom: 8 }}>
+                {tierLabel[tier]}{' '}
+                <span
+                  style={{
+                    fontFamily: 'var(--mono)',
+                    fontSize: 10,
+                    color: 'var(--ink-faded)',
+                    fontWeight: 400,
+                    marginLeft: 4,
+                  }}
+                >
+                  ({items.length})
+                </span>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                  gap: 10,
+                }}
+              >
+                {items.map((m) => {
+                  const s = sheetById.get(m.sheetId);
+                  if (!s) return null;
+                  const thumb = s.image_file
+                    ? `${imageBase}${s.image_file}`
+                    : '';
+                  const pct = Math.round(m.similarity * 100);
+                  return (
+                    <button
+                      key={m.sheetId}
+                      className="image-search-result"
+                      onClick={() => onSelect(m.sheetId)}
+                      title={`Cosine similarity: ${m.similarity.toFixed(3)}`}
+                    >
+                      <div className="image-search-result-thumb">
+                        {thumb ? (
+                          <img src={thumb} alt="" loading="lazy" />
+                        ) : (
+                          <span style={{ fontFamily: 'var(--mono)' }}>—</span>
+                        )}
+                      </div>
+                      <div className="image-search-result-meta">
+                        <div className="image-search-result-id">{s.id}</div>
+                        <div className="image-search-result-title">
+                          {s.title || (
+                            <em style={{ color: 'var(--ink-faded)' }}>
+                              Untitled
+                            </em>
+                          )}
+                        </div>
+                        <div className="image-search-result-sim">{pct}%</div>
                       </div>
                     </button>
                   );
