@@ -43,6 +43,8 @@ import { ManageLists } from './components/ManageLists';
 import { useDialog } from './components/Dialog';
 import { VocabularyHealth } from './components/VocabularyHealth';
 import { useVocabulary } from './components/VocabularyProvider';
+import { ImageSearchModal } from './components/ImageSearchModal';
+import { useImageHashIndex } from './lib/useImageHashIndex';
 
 type SortMode =
   | 'number'
@@ -112,6 +114,7 @@ export default function App() {
   const [showBulk, setShowBulk] = useState(false);
   const [showManageLists, setShowManageLists] = useState(false);
   const [showVocabularyHealth, setShowVocabularyHealth] = useState(false);
+  const [showImageSearch, setShowImageSearch] = useState(false);
   // Whether to show numeric-range gap cards in the grid (between
   // existing sheets sorted by number). Default ON — the user's stated
   // scholarly premise is that the M-numbered sequence is continuous,
@@ -125,6 +128,14 @@ export default function App() {
   }, [showGaps]);
   const { promptDialog, confirmDialog } = useDialog();
   const vocabulary = useVocabulary();
+  // Background image-hash indexer for the "Search by image" feature.
+  // Populates incrementally as sheets load; ready flag tells the
+  // search modal whether all hashes are in or still being computed.
+  const {
+    index: hashIndex,
+    progress: hashProgress,
+    ready: hashReady,
+  } = useImageHashIndex(data, BASE);
   // Select mode toggles checkboxes on cards; in this mode clicking a card
   // toggles selection rather than opening the detail view. Used for
   // bulk "add to list" operations.
@@ -1010,6 +1021,7 @@ export default function App() {
         else if (showSettings) handleCloseSettings();
         else if (showManageLists) setShowManageLists(false);
         else if (showVocabularyHealth) setShowVocabularyHealth(false);
+        else if (showImageSearch) setShowImageSearch(false);
         else if (showBulk) setShowBulk(false);
       },
     },
@@ -1180,6 +1192,12 @@ export default function App() {
           <option value="list">View: List</option>
           <option value="by_character">View: Group by Character</option>
         </select>
+        <button
+          onClick={() => setShowImageSearch(true)}
+          title="Search by image — find sheets visually similar to a pasted/dropped image"
+        >
+          ↗ Image
+        </button>
         <button
           onClick={() => {
             if (selectMode) clearSelection();
@@ -1688,6 +1706,21 @@ export default function App() {
       )}
 
       {showSettings && <Settings onClose={handleCloseSettings} />}
+
+      {showImageSearch && data && (
+        <ImageSearchModal
+          sheets={data.sheets}
+          hashIndex={hashIndex}
+          indexReady={hashReady}
+          indexProgress={hashProgress}
+          imageBase={BASE}
+          onClose={() => setShowImageSearch(false)}
+          onSelectMatch={(id) => {
+            setShowImageSearch(false);
+            setSelectedId(id);
+          }}
+        />
+      )}
 
       {showBulk && isAuthenticated && (
         <BulkImport

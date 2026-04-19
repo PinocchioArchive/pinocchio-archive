@@ -139,6 +139,25 @@ export interface ModelSheet {
   image_height?: number;
   image_sources: ImageSource[];
 
+  // Perceptual hash of `image_file` — a 64-bit dHash encoded as 16 hex
+  // chars. Used for fast in-browser image similarity search. Null/absent
+  // means "not yet computed"; the background indexer fills these in
+  // lazily as sheets are loaded and commits them back to sheets.json.
+  //
+  // Hash comparability: two hashes are only meaningfully comparable if
+  // both were computed by the same algorithm. This one is dHash at 8×9
+  // (horizontal-gradient) → 64-bit. Changing the algorithm later would
+  // require re-hashing all sheets; the algorithm version is implicit
+  // in this field's name (future versions would add image_hash_v2).
+  image_hash?: string;
+
+  // Optional CLIP-style neural embedding for deeper image matching
+  // (semantic similarity, finding stylized derivations such as merch
+  // adapted from a sheet). Typically 512 floats, stored as a base64-
+  // encoded Float32Array to keep JSON compact. Computed on-demand
+  // when the user runs a "Deep match" search, then cached.
+  image_embedding?: string;
+
   published_references: PublishedReference[];
   web_occurrences: WebOccurrenceReading[];
   rarity: {

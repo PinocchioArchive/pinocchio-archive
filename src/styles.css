@@ -2513,3 +2513,119 @@ button.btn-small,
   margin-left: 2px;
   line-height: 1;
 }
+
+/* ---------- Image search modal ---------- */
+/*
+ * Drop zone + ranked-match result tiles for the image similarity
+ * search feature. Visual language matches the rest of the archive —
+ * paper surface, ink/rule borders, subtle hover affordances.
+ */
+
+.image-search-drop {
+  border: 2px dashed var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--paper-deep);
+  padding: 32px 24px;
+  text-align: center;
+  cursor: pointer;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.image-search-drop:hover {
+  border-color: var(--ink-soft);
+}
+
+.image-search-drop-active {
+  border-color: var(--accent);
+  border-style: solid;
+  background: rgba(139, 46, 31, 0.04);
+}
+
+/* Match result tile — a small button, clickable, styled like a
+   compact version of SheetCard's image-top layout so the result set
+   reads as "these are archive entries." */
+.image-search-result {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: border-color 0.12s, transform 0.08s, box-shadow 0.12s;
+}
+
+.image-search-result:hover,
+.image-search-result:focus-visible {
+  border-color: var(--ink-soft);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(26, 23, 19, 0.08);
+  outline: none;
+}
+
+.image-search-result-thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--paper-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--rule);
+}
+
+.image-search-result-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--paper-deep);
+}
+
+.image-search-result-meta {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
+}
+
+.image-search-result-id {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.image-search-result-title {
+  font-family: var(--serif);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.image-search-result-sim {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--success);
+  background: rgba(74, 107, 58, 0.1);
+  padding: 1px 6px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
