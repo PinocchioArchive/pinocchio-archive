@@ -4,6 +4,8 @@ import {
   resolutionTier,
   googleLensUrl,
   tineyeUrl,
+  yandexUrl,
+  bingVisualUrl,
 } from '../lib/image';
 import { computeResearchStatus, type SeriesSlot } from '../lib/sheets';
 import { NoImagePlaceholder } from './NoImagePlaceholder';
@@ -139,6 +141,10 @@ export function SheetDetail({
                     display: 'flex',
                     gap: 6,
                     justifyContent: 'center',
+                    // With four buttons in the row, narrow viewports
+                    // would truncate without wrap. Wrap lets them
+                    // flow onto a second line cleanly.
+                    flexWrap: 'wrap',
                   }}
                 >
                   <a
@@ -147,6 +153,7 @@ export function SheetDetail({
                     rel="noreferrer"
                     className="btn-small"
                     style={{ textDecoration: 'none' }}
+                    title="Reverse-image search on Google Lens"
                   >
                     ↗ Google Lens
                   </a>
@@ -156,8 +163,29 @@ export function SheetDetail({
                     rel="noreferrer"
                     className="btn-small"
                     style={{ textDecoration: 'none' }}
+                    title="Reverse-image search on TinEye — best for exact-duplicate detection"
                   >
                     ↗ TinEye
+                  </a>
+                  <a
+                    href={yandexUrl(publicImageUrl)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-small"
+                    style={{ textDecoration: 'none' }}
+                    title="Reverse-image search on Yandex — different index, catches older/archival content Google and TinEye often miss"
+                  >
+                    ↗ Yandex
+                  </a>
+                  <a
+                    href={bingVisualUrl(publicImageUrl)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-small"
+                    style={{ textDecoration: 'none' }}
+                    title="Reverse-image search on Bing Visual Search"
+                  >
+                    ↗ Bing
                   </a>
                 </div>
               )}

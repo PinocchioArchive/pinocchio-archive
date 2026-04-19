@@ -30,6 +30,25 @@ export function tineyeUrl(imageUrl: string): string {
   return `https://www.tineye.com/search/?url=${encodeURIComponent(imageUrl)}`;
 }
 
+// Builds a Yandex Images reverse search URL. Yandex has a genuinely
+// different index from Google/TinEye — it's well-regarded among OSINT
+// researchers for finding matches from older content, screenshots,
+// partial crops, and less-commercial corners of the web that
+// Google's crawler skips or deranks. Particularly useful for
+// archival material which can fall out of Google's freshness-biased
+// index.
+export function yandexUrl(imageUrl: string): string {
+  return `https://yandex.com/images/search?rpt=imageview&url=${encodeURIComponent(imageUrl)}`;
+}
+
+// Builds a Bing Visual Search URL. Bing's index overlaps substantially
+// with Google's but not entirely — occasionally surfaces results
+// neither Google nor TinEye catch. Cheap to include as a third web
+// index since it's a different crawler and ranking system.
+export function bingVisualUrl(imageUrl: string): string {
+  return `https://www.bing.com/images/search?view=detailv2&iss=sbi&form=SBIVSP&sbisrc=UrlPaste&q=imgurl:${encodeURIComponent(imageUrl)}`;
+}
+
 // Builds a Google Images text search URL — useful for searching by sheet number
 // or character name when an image-based search fails.
 export function googleImagesUrl(query: string): string {

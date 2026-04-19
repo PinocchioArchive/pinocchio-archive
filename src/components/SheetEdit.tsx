@@ -20,6 +20,8 @@ import {
   resolutionTier,
   googleLensUrl,
   tineyeUrl,
+  yandexUrl,
+  bingVisualUrl,
   googleImagesUrl,
 } from '../lib/image';
 import { TagInput } from './TagInput';
@@ -867,7 +869,7 @@ export function SheetEdit({
                   }}
                 >
                   <label className="form-label">Web Occurrences</label>
-                  <div style={{ display: 'flex', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                     <a
                       href={
                         publicImageUrl
@@ -898,11 +900,47 @@ export function SheetEdit({
                       style={{ textDecoration: 'none', display: 'inline-block' }}
                       title={
                         publicImageUrl
-                          ? 'Reverse-image search on TinEye'
+                          ? 'Reverse-image search on TinEye — best for exact-duplicate detection'
                           : 'Save first to enable reverse search'
                       }
                     >
                       ↗ TinEye
+                    </a>
+                    <a
+                      href={
+                        publicImageUrl
+                          ? yandexUrl(publicImageUrl)
+                          : 'https://yandex.com/images/'
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn-small"
+                      style={{ textDecoration: 'none', display: 'inline-block' }}
+                      title={
+                        publicImageUrl
+                          ? 'Reverse-image search on Yandex — different index, often catches archival content Google misses'
+                          : 'Save first to enable reverse search'
+                      }
+                    >
+                      ↗ Yandex
+                    </a>
+                    <a
+                      href={
+                        publicImageUrl
+                          ? bingVisualUrl(publicImageUrl)
+                          : 'https://www.bing.com/images'
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn-small"
+                      style={{ textDecoration: 'none', display: 'inline-block' }}
+                      title={
+                        publicImageUrl
+                          ? 'Reverse-image search on Bing Visual Search'
+                          : 'Save first to enable reverse search'
+                      }
+                    >
+                      ↗ Bing
                     </a>
                     <button
                       type="button"
