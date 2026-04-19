@@ -672,16 +672,6 @@ export function SheetDetail({
                         const archived = group.sources.find(
                           (s) => s.archive_url
                         );
-                        const primaryHref =
-                          primary?.url || archived?.archive_url;
-                        const displayUrl =
-                          primary?.url || archived?.archive_url || '';
-                        const displayShort =
-                          displayUrl
-                            .replace(/^https?:\/\//, '')
-                            .replace(/^www\./, '')
-                            .slice(0, 60) +
-                          (displayUrl.length > 60 ? '…' : '');
                         // Pick the most confident archive status across
                         // the group.
                         const statusRank: Record<string, number> = {
@@ -764,62 +754,59 @@ export function SheetDetail({
                                 </span>
                               )}
                             </div>
-                            {primaryHref && (
+                            {(hasOriginal || hasArchive) && (
                               <div
                                 style={{
                                   display: 'flex',
-                                  alignItems: 'baseline',
+                                  alignItems: 'center',
                                   flexWrap: 'wrap',
-                                  gap: 8,
+                                  gap: 6,
                                   fontSize: 12,
+                                  marginTop: 2,
                                 }}
                               >
-                                <a
-                                  href={primaryHref}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  style={{
-                                    color: 'var(--accent)',
-                                    fontFamily: 'var(--mono)',
-                                    textDecoration: 'underline',
-                                  }}
-                                  title={displayUrl}
-                                >
-                                  {displayShort}
-                                </a>
-                                {hasArchive && hasOriginal && (
+                                {hasOriginal && (
+                                  <a
+                                    href={primary!.url!}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="provenance-link-chip"
+                                    title={primary!.url}
+                                  >
+                                    <span className="provenance-link-icon">↗</span>
+                                    Live
+                                  </a>
+                                )}
+                                {hasArchive && (
+                                  // Always present the Wayback link when an
+                                  // archive_url exists, regardless of the
+                                  // Availability API's verification verdict.
+                                  // The API returns false negatives often
+                                  // enough that treating its "failed" as
+                                  // definitive would hide working links.
+                                  // The deterministic archive_url
+                                  // (web.archive.org/web/{original}) resolves
+                                  // to the latest snapshot when clicked, so
+                                  // trust the user's click over the API.
                                   <a
                                     href={archived!.archive_url!}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="provenance-wayback-badge"
-                                    title={statusTitle}
+                                    className={`provenance-link-chip provenance-link-chip-wayback provenance-link-chip-${bestStatus}`}
+                                    title={`Wayback Machine snapshot — ${statusTitle}`}
                                   >
+                                    <span className="provenance-link-icon">↗</span>
                                     Wayback
                                     {statusIcon && (
                                       <span
-                                        style={{
-                                          color: statusColor,
-                                          marginLeft: 4,
-                                          fontFamily: 'var(--mono)',
-                                        }}
+                                        className="provenance-link-status"
+                                        style={{ color: statusColor }}
+                                        aria-label={statusTitle}
                                       >
                                         {statusIcon}
                                       </span>
                                     )}
                                   </a>
-                                )}
-                                {!hasOriginal && hasArchive && statusIcon && (
-                                  <span
-                                    style={{
-                                      color: statusColor,
-                                      fontFamily: 'var(--mono)',
-                                      fontSize: 10,
-                                    }}
-                                    title={statusTitle}
-                                  >
-                                    {statusIcon}
-                                  </span>
                                 )}
                                 {retrieved && (
                                   <span
@@ -827,6 +814,7 @@ export function SheetDetail({
                                       color: 'var(--ink-faded)',
                                       fontFamily: 'var(--mono)',
                                       fontSize: 11,
+                                      marginLeft: 4,
                                     }}
                                   >
                                     ret. {retrieved}

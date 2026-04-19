@@ -2438,3 +2438,78 @@ button.btn-small,
   color: var(--ink-faded);
   font-style: italic;
 }
+
+/* ---------- Provenance link chips ---------- */
+/*
+ * Small tactile link chips for a source's Live and Wayback URLs.
+ * Replaces the prior pattern of showing a truncated URL inline as an
+ * underlined link, which was visually inconsistent (variable-length)
+ * and made the panel feel URL-heavy. Chips are uniform-sized,
+ * archive-feel, and the tooltip carries the actual URL for the
+ * curious.
+ *
+ * Both chips use the same base shape. The Wayback variant adds a
+ * small status indicator ? / … / ✓ when the Availability API has
+ * something to say, but the status is informational only — the link
+ * is always presented as live/clickable because the deterministic
+ * Wayback redirect URL usually works even when the API claims no
+ * snapshot exists.
+ */
+.provenance-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-decoration: none;
+  line-height: 1.4;
+  transition: background 0.12s, border-color 0.12s, color 0.12s,
+    transform 0.08s;
+}
+
+.provenance-link-chip:hover,
+.provenance-link-chip:focus-visible {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+  text-decoration: none;
+  outline: none;
+}
+
+.provenance-link-chip:active {
+  transform: scale(0.97);
+}
+
+.provenance-link-icon {
+  font-family: var(--serif);
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.provenance-link-chip:hover .provenance-link-icon {
+  opacity: 1;
+}
+
+/* Wayback variant — differs from Live only in the status indicator
+   it shows when the API has returned verification data. The variants
+   below (-verified, -pending, -failed, -not_attempted) let us tune
+   appearance per state if we want, though for now we only use the
+   inline icon color to carry status. */
+.provenance-link-chip-wayback {
+  /* Reserved for future per-status styling. */
+}
+
+.provenance-link-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  margin-left: 2px;
+  line-height: 1;
+}
