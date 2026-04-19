@@ -231,7 +231,23 @@ export function ImageSearchModal({
         <div className="modal-masthead modal-masthead-minimal">
           <span className="modal-masthead-eyebrow">Image search</span>
         </div>
-        <div style={{ padding: '24px 32px' }}>
+        <div
+          style={{
+            padding: '24px 32px',
+            // The modal itself is overflow:hidden to clip rounded
+            // corners and keep the navy masthead locked at the top.
+            // Without an explicit scroll on this inner body, content
+            // that exceeds viewport height (Deep Search section,
+            // large result grids) gets silently clipped — which is
+            // what was happening and making Deep Search invisible.
+            // flex:1 + min-height:0 lets this div consume the
+            // remaining vertical space inside the flex-column modal
+            // and scroll its overflow.
+            flex: '1 1 auto',
+            minHeight: 0,
+            overflowY: 'auto',
+          }}
+        >
           <div style={{ marginBottom: 20 }}>
             <h1
               style={{
@@ -255,12 +271,11 @@ export function ImageSearchModal({
               Drop, paste, or pick an image to find visually similar sheets.
               Useful for checking if a piece of merchandise derives from a
               known model sheet, or whether an image is already in the
-              archive. Matching is based on a perceptual hash of the whole
-              image — it catches duplicates, scaled copies, and
-              close variants well. For merchandise that adapts a single
-              figure from a multi-figure sheet, the matches may be thin —
-              a deeper neural-embedding search is planned for a future
-              version.
+              archive. A fast fingerprint search runs first to catch
+              duplicates and close variants. If that's not enough — for
+              partial crops or stylized redrawings common in merchandise
+              — a deeper neural-embedding search is available below the
+              initial results.
             </p>
             {!indexReady && (
               <div
@@ -649,10 +664,15 @@ function MatchResults({
   for (const m of matches) byTier[m.tier].push(m);
 
   const tierLabel: Record<MatchTier, string> = {
-    identical: 'Essentially identical',
-    near: 'Near-duplicate (cropped, scaled, or light edit)',
-    related: 'Related (similar composition)',
-    distant: 'Weak match — probably unrelated',
+    identical: 'Strong match — almost certainly the same image',
+    near: 'Close match — cropped, scaled, or lightly edited',
+    related: 'Partial match — similar composition',
+    // The "distant" tier is the noisiest. Rather than "probably
+    // unrelated" (dismissive, and wrong when the only match is
+    // genuinely related like your shark-crop case), frame it as
+    // "worth looking at but verify manually." Low-confidence signal
+    // is still signal.
+    distant: 'Distant match — low confidence, verify manually',
   };
 
   return (
@@ -668,6 +688,28 @@ function MatchResults({
       >
         {matches.length} match{matches.length === 1 ? '' : 'es'}
       </h2>
+      {/* Explain the "%" semantics, because they're not intuitive.
+          A dHash Hamming-distance-based percentage doesn't map to
+          human "similarity" the way most users expect — 50% is random
+          noise, 65-70% is low but real signal, 85%+ is a solid match.
+          Without this note, a user seeing "67%" might dismiss a
+          genuinely useful partial match as "only 67% similar." */}
+      <div
+        style={{
+          fontSize: 11,
+          color: 'var(--ink-faded)',
+          fontStyle: 'italic',
+          marginTop: -4,
+          marginBottom: 14,
+          lineHeight: 1.5,
+        }}
+      >
+        Fingerprint similarity % is derived from bit-level hash
+        difference, not visual similarity. A score around 50% is
+        noise; 65–75% indicates real signal worth examining; 85%+
+        means a close match. Low-scoring top-ranked results are
+        still worth looking at.
+      </div>
       {(['identical', 'near', 'related', 'distant'] as MatchTier[]).map(
         (tier) => {
           const items = byTier[tier];
