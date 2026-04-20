@@ -34,8 +34,15 @@
     {
       "canonical": "Animal",
       "aliases": [],
+      "reviewed": true,
+      "added_at": "2026-04-18T23:53:07.492Z",
+      "reviewed_at": "2026-04-18T23:53:17.066Z"
+    },
+    {
+      "canonical": "Early",
+      "aliases": [],
       "reviewed": false,
-      "added_at": "2026-04-18T23:53:07.492Z"
+      "added_at": "2026-04-20T00:17:51.963Z"
     }
   ]
 }
