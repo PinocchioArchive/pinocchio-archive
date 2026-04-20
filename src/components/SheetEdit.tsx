@@ -24,6 +24,7 @@ import {
   bingVisualUrl,
   googleImagesUrl,
 } from '../lib/image';
+import { COMMON_CURRENCIES } from '../lib/currency';
 import { TagInput } from './TagInput';
 import { AutocompleteInput } from './AutocompleteInput';
 import { ExtractionReview } from './ExtractionReview';
@@ -1798,6 +1799,15 @@ function RepeatableImageSources({
               )}
             </div>
           )}
+          {/* Auction / sale details — expanded when the source_type
+              suggests this is an auction listing, OR when any
+              auction field has data. Collapsed otherwise to avoid
+              cluttering image sources that aren't sales (fan
+              sites, magazine scans, social media posts). */}
+          <AuctionDetailsBlock
+            item={item}
+            onChange={(patch) => setItem(i, patch)}
+          />
           <input
             type="text"
             className="form-input"
@@ -2130,6 +2140,291 @@ function WebOccurrenceForm({
         placeholder="Notes (optional)"
         onChange={(e) => setNotes(e.target.value)}
       />
+    </div>
+  );
+}
+
+// Editor sub-block for the optional auction/sale fields on an
+// ImageSource. Collapsed by default unless the item already has
+// auction data OR the source_type strongly suggests a sale event.
+// The block handles: auction house, lot number, SKU, sale date &
+// precision, hammer price & currency, estimate range, sold/unsold
+// flag.
+//
+// Design choices:
+// - Numeric inputs use type="number" with step="0.01" so cents can
+//   be entered but aren't required. Empty string → undefined, not 0.
+// - Currency is a small dropdown of common codes. Default USD.
+// - The "did it sell" flag is a tri-state select (unknown/sold/unsold)
+//   rather than a checkbox, so we can preserve the distinction
+//   between "undocumented" and "confirmed unsold."
+// - All fields are optional. No validation — a messy record is still
+//   better than no record.
+function AuctionDetailsBlock({
+  item,
+  onChange,
+}: {
+  item: ImageSource;
+  onChange: (patch: Partial<ImageSource>) => void;
+}) {
+  // Is the block currently showing any auction data?
+  const hasAuctionData =
+    item.auction_house ||
+    item.lot_number ||
+    item.sku ||
+    item.sale_date ||
+    item.price_sold !== undefined ||
+    item.price_estimate_low !== undefined ||
+    item.price_estimate_high !== undefined ||
+    item.sold !== undefined;
+
+  // Auto-expand when source_type is auction_listing OR when data exists.
+  const shouldAutoShow =
+    item.source_type === 'auction_listing' || hasAuctionData;
+
+  const [showBlock, setShowBlock] = useState(shouldAutoShow);
+
+  // Keep open if data appears (e.g., after a source_type change).
+  useEffect(() => {
+    if (shouldAutoShow && !showBlock) setShowBlock(true);
+  }, [shouldAutoShow, showBlock]);
+
+  // Helper to parse a number input. Empty → undefined. Invalid → keep old.
+  const parseNum = (s: string): number | undefined => {
+    if (s.trim() === '') return undefined;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  if (!showBlock) {
+    return (
+      <button
+        type="button"
+        onClick={() => setShowBlock(true)}
+        style={{
+          fontFamily: 'var(--mono)',
+          fontSize: 10,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: 'var(--ink-faded)',
+          background: 'transparent',
+          border: 'none',
+          padding: '2px 0',
+          cursor: 'pointer',
+          textAlign: 'left',
+          textDecoration: 'underline dotted',
+          textUnderlineOffset: 3,
+        }}
+        title="Add sale/auction details: lot #, price, date, etc."
+      >
+        + Sale details
+      </button>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        background: 'var(--paper-deep)',
+        border: '1px solid var(--rule)',
+        borderRadius: 'var(--radius-sm)',
+        padding: '10px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 2,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: 'var(--mono)',
+            fontSize: 10,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'var(--ink-faded)',
+          }}
+        >
+          Sale details
+        </span>
+        {!hasAuctionData && (
+          <button
+            type="button"
+            onClick={() => setShowBlock(false)}
+            style={{
+              fontSize: 10,
+              color: 'var(--ink-faded)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+            title="Hide (no data to keep)"
+          >
+            Hide
+          </button>
+        )}
+      </div>
+
+      {/* Row 1: auction house + lot number */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '2fr 1fr',
+          gap: 6,
+        }}
+      >
+        <input
+          type="text"
+          className="form-input"
+          value={item.auction_house || ''}
+          placeholder="Auction house (e.g. Van Eaton)"
+          onChange={(e) => onChange({ auction_house: e.target.value })}
+        />
+        <input
+          type="text"
+          className="form-input"
+          value={item.lot_number || ''}
+          placeholder="Lot #"
+          onChange={(e) => onChange({ lot_number: e.target.value })}
+        />
+      </div>
+
+      {/* Row 2: SKU + sale date + precision */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '2fr 1.2fr 1fr',
+          gap: 6,
+        }}
+      >
+        <input
+          type="text"
+          className="form-input"
+          value={item.sku || ''}
+          placeholder="SKU / item #"
+          onChange={(e) => onChange({ sku: e.target.value })}
+        />
+        <input
+          type="text"
+          className="form-input"
+          value={item.sale_date || ''}
+          placeholder="Sale date"
+          onChange={(e) => onChange({ sale_date: e.target.value })}
+        />
+        <select
+          className="form-select"
+          value={item.sale_date_precision || ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            onChange({
+              sale_date_precision: (v || undefined) as DatePrecision | undefined,
+            });
+          }}
+          style={{ fontSize: 12 }}
+          title="How specific the sale date is"
+        >
+          <option value="">Precision…</option>
+          <option value="exact">Exact day</option>
+          <option value="month">Month</option>
+          <option value="year">Year</option>
+          <option value="range">Range</option>
+          <option value="unknown">Unknown</option>
+        </select>
+      </div>
+
+      {/* Row 3: hammer price + currency + sold flag */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1.2fr 0.8fr 1fr',
+          gap: 6,
+        }}
+      >
+        <input
+          type="number"
+          step="0.01"
+          className="form-input"
+          value={item.price_sold ?? ''}
+          placeholder="Hammer price"
+          onChange={(e) => onChange({ price_sold: parseNum(e.target.value) })}
+        />
+        <select
+          className="form-select"
+          value={item.currency || 'USD'}
+          onChange={(e) => onChange({ currency: e.target.value })}
+          style={{ fontSize: 12 }}
+        >
+          {COMMON_CURRENCIES.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.code}
+            </option>
+          ))}
+        </select>
+        <select
+          className="form-select"
+          value={
+            item.sold === true
+              ? 'sold'
+              : item.sold === false
+              ? 'unsold'
+              : ''
+          }
+          onChange={(e) => {
+            const v = e.target.value;
+            onChange({
+              sold:
+                v === 'sold'
+                  ? true
+                  : v === 'unsold'
+                  ? false
+                  : undefined,
+            });
+          }}
+          style={{ fontSize: 12 }}
+          title="Did the item actually sell?"
+        >
+          <option value="">Outcome…</option>
+          <option value="sold">Sold</option>
+          <option value="unsold">Unsold / passed</option>
+        </select>
+      </div>
+
+      {/* Row 4: estimate range */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 6,
+        }}
+      >
+        <input
+          type="number"
+          step="0.01"
+          className="form-input"
+          value={item.price_estimate_low ?? ''}
+          placeholder="Estimate low"
+          onChange={(e) =>
+            onChange({ price_estimate_low: parseNum(e.target.value) })
+          }
+        />
+        <input
+          type="number"
+          step="0.01"
+          className="form-input"
+          value={item.price_estimate_high ?? ''}
+          placeholder="Estimate high"
+          onChange={(e) =>
+            onChange({ price_estimate_high: parseNum(e.target.value) })
+          }
+        />
+      </div>
     </div>
   );
 }

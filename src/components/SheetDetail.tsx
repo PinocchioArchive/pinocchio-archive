@@ -1,4 +1,4 @@
-import type { ModelSheet } from '../types/schema';
+import type { ModelSheet, ImageSource } from '../types/schema';
 import {
   formatResolution,
   resolutionTier,
@@ -7,6 +7,7 @@ import {
   yandexUrl,
   bingVisualUrl,
 } from '../lib/image';
+import { formatPrice, formatEstimateRange } from '../lib/currency';
 import { computeResearchStatus, type SeriesSlot } from '../lib/sheets';
 import { NoImagePlaceholder } from './NoImagePlaceholder';
 import {
@@ -835,6 +836,24 @@ export function SheetDetail({
                                 )}
                               </div>
                             )}
+                            {/* Per-source auction/sale details.
+                                Renders only for sources that have at
+                                least one auction field populated.
+                                When a group has multiple sources
+                                sharing a URL, each one gets its own
+                                block if applicable — different
+                                sources observing the same item could
+                                legitimately record different sale
+                                events (e.g., Worthpoint snapshot vs.
+                                archived auction-house listing). */}
+                            {group.sources
+                              .filter(sourceHasAuctionData)
+                              .map((src, si) => (
+                                <AuctionDetailsDisplay
+                                  key={si}
+                                  source={src}
+                                />
+                              ))}
                             {allNotes && (
                               <div
                                 style={{
@@ -1053,6 +1072,198 @@ export function SheetDetail({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Predicate: does this source have any auction/sale data to show?
+// Matches the fields added to ImageSource for price/date tracking.
+// A source with any single field populated is worth rendering.
+function sourceHasAuctionData(s: ImageSource): boolean {
+  return Boolean(
+    s.auction_house ||
+      s.lot_number ||
+      s.sku ||
+      s.sale_date ||
+      s.price_sold !== undefined ||
+      s.price_estimate_low !== undefined ||
+      s.price_estimate_high !== undefined ||
+      s.sold !== undefined
+  );
+}
+
+// Renders an ImageSource's auction/sale data as a compact inline
+// block in the provenance pane. Meant to sit between the source's
+// link chips and any notes. All fields optional — we compose a
+// "header line" (house + lot) and a "sale line" (outcome, date,
+// price) dynamically based on what's populated.
+//
+// Visual style matches the existing "small fact" panels elsewhere
+// in SheetDetail — paper-deep background, subtle rule border, mono
+// caps label. Price and house get slightly more emphasis (ink
+// color, serif for price) since those are usually the scholarly-
+// relevant facts.
+function AuctionDetailsDisplay({ source: s }: { source: ImageSource }) {
+  const currency = s.currency || 'USD';
+  const priceStr = formatPrice(s.price_sold, currency);
+  const estimateStr = formatEstimateRange(
+    s.price_estimate_low,
+    s.price_estimate_high,
+    currency
+  );
+
+  // Outcome label — explicit about "unsold" vs. "sold" vs. unstated.
+  const outcomeLabel =
+    s.sold === true
+      ? 'Sold'
+      : s.sold === false
+      ? 'Unsold'
+      : s.price_sold !== undefined
+      ? 'Sold' // implied by having a price even if `sold` flag absent
+      : '';
+
+  // Header line: auction house + lot number.
+  // Fall back to source_name if auction_house isn't filled in — most
+  // of the time the auction source IS the house.
+  const houseLabel = s.auction_house || s.source_name || '';
+  const lotLabel = s.lot_number ? `Lot ${s.lot_number}` : '';
+
+  return (
+    <div
+      style={{
+        marginTop: 6,
+        padding: '8px 10px',
+        background: 'var(--paper-deep)',
+        border: '1px solid var(--rule)',
+        borderRadius: 'var(--radius-sm)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+      }}
+    >
+      {/* Label strip so this block reads as "sale record" at a glance */}
+      <div
+        style={{
+          fontFamily: 'var(--mono)',
+          fontSize: 10,
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          color: 'var(--ink-faded)',
+          marginBottom: 2,
+        }}
+      >
+        Sale record
+      </div>
+
+      {/* Header: house + lot */}
+      {(houseLabel || lotLabel) && (
+        <div
+          style={{
+            fontFamily: 'var(--serif)',
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--ink)',
+          }}
+        >
+          {houseLabel}
+          {houseLabel && lotLabel && (
+            <span style={{ color: 'var(--ink-faded)' }}> · </span>
+          )}
+          {lotLabel && (
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>
+              {lotLabel}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Sale line: outcome + date + price */}
+      {(outcomeLabel || s.sale_date || priceStr) && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            flexWrap: 'wrap',
+            gap: 6,
+            fontSize: 13,
+          }}
+        >
+          {outcomeLabel && (
+            <span
+              style={{
+                fontFamily: 'var(--mono)',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color:
+                  s.sold === false
+                    ? 'var(--warn)'
+                    : 'var(--success)',
+                padding: '1px 6px',
+                background:
+                  s.sold === false
+                    ? 'rgba(168, 122, 58, 0.12)'
+                    : 'rgba(74, 107, 58, 0.12)',
+                borderRadius: 999,
+              }}
+            >
+              {outcomeLabel}
+            </span>
+          )}
+          {s.sale_date && (
+            <span
+              style={{
+                fontFamily: 'var(--mono)',
+                fontSize: 12,
+                color: 'var(--ink-soft)',
+              }}
+            >
+              {s.sale_date}
+              {s.sale_date_precision &&
+                s.sale_date_precision !== 'exact' && (
+                  <span
+                    style={{
+                      color: 'var(--ink-faded)',
+                      marginLeft: 4,
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    ({s.sale_date_precision})
+                  </span>
+                )}
+            </span>
+          )}
+          {priceStr && (
+            <span
+              style={{
+                fontFamily: 'var(--serif)',
+                fontSize: 15,
+                fontWeight: 600,
+                color: 'var(--ink)',
+              }}
+            >
+              {priceStr}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Secondary facts: estimate range + SKU */}
+      {(estimateStr || s.sku) && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            fontSize: 11,
+            color: 'var(--ink-faded)',
+            fontFamily: 'var(--mono)',
+            letterSpacing: '0.02em',
+          }}
+        >
+          {estimateStr && <span>Est. {estimateStr}</span>}
+          {s.sku && <span>SKU: {s.sku}</span>}
+        </div>
+      )}
     </div>
   );
 }

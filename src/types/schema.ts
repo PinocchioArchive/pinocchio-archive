@@ -59,6 +59,65 @@ export interface ImageSource {
   // and lets the user confirm (clearing the flag) or edit (implicit confirm).
   source_name_inferred?: boolean;
   source_type_inferred?: boolean;
+
+  // Optional auction/sale data. When an image source IS an auction
+  // listing (Van Eaton lot page, Heritage archive entry, Worthpoint
+  // record, eBay listing, etc.), these fields capture the sale
+  // event's factual data: lot identifier, sale date, hammer price.
+  // All fields are optional — most image sources (e.g., a magazine
+  // scan on Flickr) won't have any of them. For sources that do,
+  // the data gets displayed as a small provenance table next to
+  // the source link.
+  //
+  // Legal note on recording these: sale prices, dates, and lot
+  // numbers are facts and not subject to copyright under Feist v.
+  // Rural Telephone. Recording "sold for $X on date Y, lot Z at
+  // house W" — with attribution back to where we observed the data
+  // (e.g., Worthpoint) — is standard scholarly provenance practice.
+  // We don't store or republish auction-house descriptive text or
+  // photos (those ARE copyrighted).
+
+  // The auction house or selling platform (Van Eaton Galleries,
+  // Heritage Auctions, Sotheby's, eBay, etc.). Often the same as
+  // `source_name`, but can differ — e.g., a Worthpoint record of a
+  // Van Eaton sale has source_name="Worthpoint" and
+  // auction_house="Van Eaton Galleries".
+  auction_house?: string;
+
+  // The lot number at auction. Whatever format the auction house
+  // uses: "Lot 234", "234A", "8/234", etc. Stored as entered.
+  lot_number?: string;
+
+  // A vendor-specific identifier — Worthpoint SKU, eBay item number,
+  // Heritage's internal ID. Useful because these outlive the live
+  // listing and can be used to find the record again later.
+  sku?: string;
+
+  // Sale date. ISO format preferred (YYYY-MM-DD) but partial dates
+  // OK ("2018-03", "2018"). `sale_date_precision` carries how
+  // specific the date actually is.
+  sale_date?: string;
+  sale_date_precision?: DatePrecision;
+
+  // Hammer price (the actual sold price, excluding buyer's premium
+  // unless explicitly noted in `notes`). Stored as a decimal number
+  // — 4200 for $4,200, 185.50 for $185.50. Currency carried
+  // separately.
+  price_sold?: number;
+  currency?: string; // ISO 4217: "USD", "GBP", "EUR", etc.
+
+  // Pre-sale estimate range, if known. Scholarly-relevant because
+  // it captures what the auction house thought the item was worth
+  // at the time — useful for tracking how valuation has shifted.
+  price_estimate_low?: number;
+  price_estimate_high?: number;
+
+  // Did it actually sell? false = passed / bought-in (didn't meet
+  // reserve). Default undefined = unknown; true = sold; false =
+  // did not sell. Distinguishing "unsold" from "unknown" matters
+  // because an unsold auction is a different data point than an
+  // undocumented one.
+  sold?: boolean;
 }
 
 export interface PublishedReference {
