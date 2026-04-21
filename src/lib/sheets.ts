@@ -4,8 +4,30 @@ import type {
   DatePrecision,
 } from '../types/schema';
 
-// Parses "M174-A" into { prefix: "M", numeric: 174, suffix: "A" }.
-// Also handles loose input like "m19a", "M 231 - A", "231-A", "M174".
+// Parses a sheet-number string into its structural pieces: an optional
+// prefix (letters, `#`, or both), a numeric part, and an optional
+// letter suffix. Returns a normalized canonical form suitable for use
+// as an ID.
+//
+// Supports:
+//   - "M174-A"      → MXXX-A canonical form (Character Model Dept)
+//   - "M174"        → no suffix
+//   - "PC-23"       → different alpha prefix
+//   - "CM-55"       → multi-letter prefix
+//   - "D-7"         → single-letter prefix
+//   - "#5", "#104"  → hash-prefixed sheets (older numbering style)
+//   - "347"         → bare numeric — preserved AS-IS (no silent
+//                     rewriting to "M347"; an unprefixed sheet is a
+//                     legitimate archival artifact, not a typo)
+//
+// Unlike the previous implementation, this one does NOT force an "M"
+// prefix onto bare numeric input. That behavior was fine when the
+// archive only held MXXX-A sheets, but leaks silent format mutation
+// the moment other prefix styles exist. What the user typed is what
+// gets saved (modulo whitespace/case normalization).
+//
+// Returns null only for truly unparseable input — no digits at all
+// ("abc"), or empty string.
 export function parseSheetNumber(input: string): {
   prefix: string;
   numeric: number;
@@ -14,35 +36,76 @@ export function parseSheetNumber(input: string): {
 } | null {
   if (!input) return null;
   const cleaned = input.trim().toUpperCase().replace(/\s+/g, '');
-  const match = cleaned.match(/^([A-Z]*?)(\d+)[-_]?([A-Z]*)$/);
+  // Regex breakdown:
+  //   ^(#?[A-Z]*?)  — optional `#`, then zero-or-more letters (lazy
+  //                    so we give as much of the numeric run as
+  //                    possible to group 2)
+  //   (\d+)          — required digits
+  //   [-_]?         — optional separator
+  //   ([A-Z]*)$     — optional trailing letters (suffix like "A")
+  const match = cleaned.match(/^(#?[A-Z]*?)(\d+)[-_]?([A-Z]*)$/);
   if (!match) return null;
-  const prefix = match[1] || 'M';
+  // Preserve what the user typed. An empty prefix stays empty —
+  // don't force an "M" in front of bare numerics.
+  const prefix = match[1] || '';
   const numeric = parseInt(match[2], 10);
   const suffix = match[3] || '';
   if (isNaN(numeric)) return null;
+  // Canonical form: always use `-` before the suffix if there is one.
+  // For hash-prefix no separator between `#` and digits.
   const canonical = suffix
     ? `${prefix}${numeric}-${suffix}`
     : `${prefix}${numeric}`;
   return { prefix, numeric, suffix, canonical };
 }
 
-// Tries to extract a sheet number from a filename like "M174-A dutch girl.jpg"
-// or "pinocchio_m036a_ubangi.png". Returns null if no number-looking substring is found.
+// Tries to extract a sheet number from a filename. Handles a few
+// common patterns:
+//
+//   "M174-A dutch girl.jpg"        → "M174-A"
+//   "pinocchio_m036a_ubangi.png"   → "M36-A"  (zero-stripped)
+//   "PC-23 stromboli.jpg"          → "PC-23"
+//   "#5 shark suggestions.png"     → "#5"
+//   "347_something.jpg"            → "347"    (bare number preserved;
+//                                              no silent M-prefixing)
+//
+// Returns null if nothing number-looking is found.
 export function guessSheetNumberFromFilename(filename: string): string | null {
   const base = filename.replace(/\.[^.]+$/, '');
-  // Look for M-prefixed patterns first (most reliable).
+  // M-prefixed — the archive's primary style; try first for
+  // specificity.
   const mMatch = base.match(/\bM[-_\s]?(\d{1,4})[-_\s]?([A-Za-z])?\b/i);
   if (mMatch) {
     const num = parseInt(mMatch[1], 10);
     const suffix = (mMatch[2] || '').toUpperCase();
     return suffix ? `M${num}-${suffix}` : `M${num}`;
   }
-  // Fall back to just numbers that look sheet-like (3-4 digits).
-  const numMatch = base.match(/\b(\d{2,4})[-_\s]?([A-Za-z])?\b/);
+  // `#`-prefixed. The hash is allowed at start of filename or after
+  // a word boundary; \b doesn't match before `#` in all regex
+  // engines so we anchor manually.
+  const hashMatch = base.match(/(?:^|[\s_-])#(\d{1,4})\b/);
+  if (hashMatch) {
+    return `#${parseInt(hashMatch[1], 10)}`;
+  }
+  // Other alpha-prefix like "PC-23", "CM-55", "D-7". Two-or-more
+  // letters or a single letter followed by a separator + digits.
+  const alphaMatch = base.match(
+    /\b([A-Za-z]{1,3})[-_\s](\d{1,4})(?:[-_\s]([A-Za-z]))?\b/
+  );
+  if (alphaMatch) {
+    const prefix = alphaMatch[1].toUpperCase();
+    const num = parseInt(alphaMatch[2], 10);
+    const suffix = (alphaMatch[3] || '').toUpperCase();
+    return suffix ? `${prefix}-${num}-${suffix}` : `${prefix}-${num}`;
+  }
+  // Fall back to bare numbers (3-4 digits to avoid false positives
+  // on things like date fragments). Preserved as-is rather than
+  // forced to M-prefixed.
+  const numMatch = base.match(/\b(\d{3,4})(?:[-_\s]([A-Za-z]))?\b/);
   if (numMatch) {
     const num = parseInt(numMatch[1], 10);
     const suffix = (numMatch[2] || '').toUpperCase();
-    return suffix ? `M${num}-${suffix}` : `M${num}`;
+    return suffix ? `${num}-${suffix}` : `${num}`;
   }
   return null;
 }
@@ -114,10 +177,33 @@ export function compareSheetsBySequence(
   return compareSheets(a, b);
 }
 
+// Default sort: by the numeric part of the sheet number, then by
+// prefix (so "M5" and "#5" don't collapse as "equal"), then by
+// suffix (so M5-A comes before M5-B).
+//
+// Sheets whose ID didn't parse to a numeric (sheet_number_numeric=0
+// and also non-empty ID) get pushed to the end of the list rather
+// than dominating the top. This matters for scholarly IDs like
+// "UNCATALOGED-3" or free-text identifiers that someone might have
+// saved — they're valid records, they just don't slot into the
+// numeric sequence.
 export function compareSheets(a: ModelSheet, b: ModelSheet): number {
+  const aHasNum = a.sheet_number_numeric > 0;
+  const bHasNum = b.sheet_number_numeric > 0;
+  // Unparseable IDs go to the end.
+  if (aHasNum && !bHasNum) return -1;
+  if (!aHasNum && bHasNum) return 1;
+  // Both parseable: compare by numeric first.
   if (a.sheet_number_numeric !== b.sheet_number_numeric) {
     return a.sheet_number_numeric - b.sheet_number_numeric;
   }
+  // Same numeric — tie-break by prefix so M5 and #5 (and PC-5 and
+  // D-5) each get their own slot rather than collapsing. Empty
+  // prefix (bare-numeric IDs) sorts before any alpha prefix.
+  const aPrefix = a.sheet_number_prefix || '';
+  const bPrefix = b.sheet_number_prefix || '';
+  if (aPrefix !== bPrefix) return aPrefix.localeCompare(bPrefix);
+  // Same numeric AND prefix — final tie-break on suffix.
   return a.sheet_number_suffix.localeCompare(b.sheet_number_suffix);
 }
 
@@ -172,7 +258,7 @@ export function makeEmptySheet(
   const now = new Date().toISOString();
   return {
     id: parsed?.canonical || id,
-    sheet_number_prefix: parsed?.prefix || 'M',
+    sheet_number_prefix: parsed?.prefix || '',
     sheet_number_numeric: parsed?.numeric || 0,
     sheet_number_suffix: parsed?.suffix || '',
     title: '',
@@ -321,6 +407,26 @@ export function extractSourceVocabulary(
 
 // Returns defaults pulled from the most recent sheet, useful for pre-filling
 // new-record forms when working through a batch from the same source.
+//
+// The image_sources default is narrow: we carry over only `source_type`
+// and `source_name` — the attributes that tend to repeat across a
+// batch-entry session ("all these sheets are from Van Eaton"). We
+// deliberately DO NOT carry over:
+//
+//   - url, archive_url, archive_captured_at, archive_status: unique
+//     per listing. Copying leaks the previous record's URL into new
+//     records, which corrupts provenance (ten sheets all appearing
+//     to come from one URL) and is tedious to clear.
+//   - auction_house, lot_number, sku, sale_date, price_sold,
+//     currency, price_estimate_low/high, sold: all unique per sale
+//     event. Copying these would phantom-attribute sale records to
+//     sheets that never had those sales.
+//   - notes: source-specific observations.
+//   - *_inferred flags: these describe confidence from an auto-
+//     inference that didn't happen for this new record.
+//
+// `retrieved` is refreshed to today's date (if we're carrying a
+// template forward, the "when I saw this" date should be now).
 export function getRecentDefaults(
   sheets: ModelSheet[]
 ): Partial<ModelSheet> {
@@ -334,11 +440,23 @@ export function getRecentDefaults(
       mostRecent.sequence_association_confidence,
     department: mostRecent.department,
     approvals: mostRecent.approvals,
-    // Copy the last image source as a template (user can edit or remove).
-    image_sources: mostRecent.image_sources.slice(0, 1).map((s) => ({
-      ...s,
-      retrieved: new Date().toISOString().slice(0, 10),
-    })),
+    // Template the first image source — JUST the categorical fields
+    // that might repeat across a batch. Everything listing-specific
+    // is dropped. Only include the template if source_type or
+    // source_name is actually non-empty — otherwise there's nothing
+    // worth pre-filling and an empty placeholder just clutters the UI.
+    image_sources:
+      mostRecent.image_sources.length > 0 &&
+      (mostRecent.image_sources[0].source_type !== 'unknown' ||
+        (mostRecent.image_sources[0].source_name || '').trim())
+        ? [
+            {
+              source_type: mostRecent.image_sources[0].source_type,
+              source_name: mostRecent.image_sources[0].source_name,
+              retrieved: new Date().toISOString().slice(0, 10),
+            },
+          ]
+        : [],
   };
 }
 

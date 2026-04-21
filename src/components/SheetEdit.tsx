@@ -240,11 +240,15 @@ export function SheetEdit({
 
   const handleIdChange = (value: string) => {
     const parsed = parseSheetNumber(value);
+    // When the parser succeeds, use canonical + parsed parts.
+    // When it fails, save the raw value as id and zero out the
+    // structural fields (not preserve them — stale prefix/numeric
+    // from a previous successful parse would corrupt the sort).
     setDraft((d) => ({
       ...d,
       id: parsed?.canonical || value,
-      sheet_number_prefix: parsed?.prefix || d.sheet_number_prefix,
-      sheet_number_numeric: parsed?.numeric ?? d.sheet_number_numeric,
+      sheet_number_prefix: parsed?.prefix || '',
+      sheet_number_numeric: parsed?.numeric ?? 0,
       sheet_number_suffix: parsed?.suffix || '',
     }));
   };
@@ -296,7 +300,15 @@ export function SheetEdit({
   const duplicateId = !!(
     isNew && draft.id && existingIds.has(draft.id)
   );
-  const invalidId = !draft.id || draft.sheet_number_numeric === 0;
+  // Previously this also blocked saving if sheet_number_numeric was 0
+  // (a proxy for "the parser succeeded"). That silently rejected
+  // legitimate IDs the parser couldn't turn into a numeric — like
+  // hash-prefix sheets (#5, #104), or any other numbering style that
+  // doesn't fit letters-then-digits. Now: non-empty + unique is
+  // enough. Unparseable IDs save fine; they just don't participate
+  // in numeric sort (they sort to the end) and don't contribute to
+  // gap detection.
+  const invalidId = !draft.id;
 
   const handleSubmit = async (andNext: boolean) => {
     if (duplicateId) {
@@ -306,7 +318,9 @@ export function SheetEdit({
       return;
     }
     if (invalidId) {
-      setError('Enter a valid sheet number (e.g., M174-A)');
+      setError(
+        'Enter a sheet ID (M174-A, PC-23, #5, 347, or any unique identifier)'
+      );
       return;
     }
     setSaving(true);
@@ -575,7 +589,7 @@ export function SheetEdit({
                   type="text"
                   className="form-input"
                   value={draft.id}
-                  placeholder="M174-A"
+                  placeholder="M174-A, PC-23, #5, or 347"
                   onChange={(e) => handleIdChange(e.target.value)}
                   autoFocus={isNew}
                   style={{
@@ -596,8 +610,17 @@ export function SheetEdit({
                       {draft.sheet_number_suffix &&
                         `-${draft.sheet_number_suffix}`}
                     </>
+                  ) : draft.id ? (
+                    // User typed something that didn't parse — tell
+                    // them it's fine (it'll save) but won't be part
+                    // of numeric sort. This should only show for
+                    // genuinely unparseable text, not for normal
+                    // MXXX-A / PC-X / #X / bare-numeric entries.
+                    <span style={{ color: 'var(--ink-faded)' }}>
+                      Saved as-is — won't join numeric sort
+                    </span>
                   ) : (
-                    <>e.g., M174-A</>
+                    <>e.g., M174-A, PC-23, #5</>
                   )}
                 </span>
               </div>
