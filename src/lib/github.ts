@@ -65,12 +65,36 @@ async function ghFetch(path: string, init?: RequestInit): Promise<Response> {
 }
 
 // Read a file's current SHA (needed for updates).
-export async function getFileSha(filePath: string): Promise<string | null> {
+//
+// GitHub's `contents` API is served via their CDN and can return
+// stale responses for seconds after a commit lands. For update
+// flows, callers need the *current* sha or the PUT will 409. The
+// `bustCache` option forces a cache-busting query param so retries
+// actually see the latest state rather than hitting the edge cache
+// again. First reads can skip this since initial load doesn't care
+// about staleness at the sha level.
+export async function getFileSha(
+  filePath: string,
+  bustCache = false
+): Promise<string | null> {
   const config = getRepoConfig();
   if (!config) throw new Error('No repo configured');
   try {
+    // The `t=` param doesn't mean anything to GitHub's API — it's
+    // just a different URL, which defeats any edge-level caching
+    // that keys on the full URL. Also send explicit Cache-Control
+    // headers for belt-and-braces effect.
+    const cacheBust = bustCache ? `&t=${Date.now()}` : '';
     const res = await ghFetch(
-      `/repos/${config.owner}/${config.repo}/contents/${filePath}?ref=${config.branch}`
+      `/repos/${config.owner}/${config.repo}/contents/${filePath}?ref=${config.branch}${cacheBust}`,
+      bustCache
+        ? {
+            headers: {
+              'Cache-Control': 'no-cache',
+              Pragma: 'no-cache',
+            },
+          }
+        : undefined
     );
     const data: FileResponse = await res.json();
     return data.sha;
@@ -117,19 +141,39 @@ export async function commitBinaryFile(
   await commitWithRetry(config, filePath, base64Content, message);
 }
 
-// Shared PUT logic with conflict retry. Attempts up to maxAttempts times;
-// on 409 between attempts, re-fetches the SHA and retries. Other errors
-// bubble out immediately.
+// Shared PUT logic with conflict retry. The 409 conflict on GitHub's
+// contents API is typically transient — either a concurrent writer
+// (e.g., another tab, a background sync) committed between our sha
+// fetch and our PUT, OR the sha we have is stale because GitHub's
+// CDN returned an older version.
+//
+// Strategy:
+//   1. First attempt uses the sha we already fetched on load (via
+//      app-level caching). Most saves succeed here with no round-trip.
+//   2. On 409, refetch the sha with cache-busting so we skip any
+//      edge cache that might be holding the stale sha.
+//   3. Exponential backoff between attempts gives concurrent writers
+//      (or the CDN) time to settle.
+//   4. Up to 5 attempts total — beyond this, we treat it as a real
+//      conflict the user needs to resolve by reloading.
+//
+// Last-write-wins semantics apply: we don't attempt to merge with
+// changes that landed on the server between reads. For a single-
+// author archive this is safe, but it means a reload is required
+// after a 409 to pick up whatever the other writer did.
 async function commitWithRetry(
   config: RepoConfig,
   filePath: string,
   base64Content: string,
   message: string,
-  maxAttempts = 3
+  maxAttempts = 5
 ): Promise<void> {
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const sha = await getFileSha(filePath);
+    // Attempt 1 uses the cached sha; retries force fresh from GitHub
+    // via cache-busting. This matters because the CDN may keep
+    // serving a stale sha for several seconds after a commit lands.
+    const sha = await getFileSha(filePath, attempt > 1);
     const body: Record<string, unknown> = {
       message,
       content: base64Content,
@@ -150,15 +194,25 @@ async function commitWithRetry(
       const msg = e instanceof Error ? e.message : String(e);
       // Only retry on 409 (SHA conflict). All other errors are terminal.
       if (!msg.includes('409')) throw e;
-      // Small backoff helps when two commits are racing; gives the
-      // other one time to land so our next fetch gets the fresh SHA.
+      // Exponential backoff: 250ms, 500ms, 1s, 2s → total ~3.75s of
+      // waiting across all retries. Gives the CDN / concurrent
+      // writer plenty of time to settle.
       if (attempt < maxAttempts) {
-        await new Promise((r) => setTimeout(r, 200 * attempt));
+        const delay = 250 * Math.pow(2, attempt - 1);
+        await new Promise((r) => setTimeout(r, delay));
       }
     }
   }
-  throw lastError ??
-    new Error(`Commit to ${filePath} failed after ${maxAttempts} attempts`);
+  // All retries exhausted. Surface a user-friendly message but include
+  // the underlying GitHub error for debugging.
+  const underlying =
+    lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(
+    `Save conflict: ${filePath} was changed from another source ` +
+      `while you were editing. Reload the page to pick up the latest ` +
+      `state, then re-apply your changes. ` +
+      `(GitHub returned: ${underlying})`
+  );
 }
 
 export async function verifyToken(): Promise<{
