@@ -102,6 +102,51 @@
       "updated_at": "2026-04-21T02:23:18.620Z",
       "image_width": 800,
       "image_height": 613
+    },
+    {
+      "id": "#5",
+      "sheet_number_prefix": "#",
+      "sheet_number_numeric": 5,
+      "sheet_number_suffix": "",
+      "title": "Model Sheet Pinocchio",
+      "characters": [
+        "Pinocchio"
+      ],
+      "sequence_association_confidence": "medium",
+      "production_stamps": [],
+      "department": "Character Model Department",
+      "artist": "Unknown",
+      "date_precision": "unknown",
+      "approvals": [],
+      "sheet_marks": [],
+      "image_file": "images/Model_Sheet_Pinocchio.jpg",
+      "image_sources": [
+        {
+          "source_type": "unknown",
+          "source_name": "",
+          "url": "",
+          "retrieved": "2026-04-21",
+          "notes": "",
+          "archive_status": "not_attempted"
+        }
+      ],
+      "published_references": [],
+      "web_occurrences": [],
+      "rarity": {
+        "market": "unknown",
+        "institutional": "unknown",
+        "iconographic": "unknown"
+      },
+      "needs_research": true,
+      "tags": [
+        "Early",
+        "Pinocchio"
+      ],
+      "notes": "Probably pre-June, 1938 and left over from the scrapped first version of Pinocchio. This isn't the earliest version of Pinocchio, but it's earlier than the final version by months to a year.",
+      "created_at": "2026-04-21T02:17:58.492Z",
+      "updated_at": "2026-04-21T02:25:46.732Z",
+      "image_width": 800,
+      "image_height": 613
     }
   ]
 }
