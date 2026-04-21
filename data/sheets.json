@@ -81,9 +81,9 @@
         {
           "source_type": "auction_listing",
           "source_name": "Heritage Auctions",
-          "url": "",
+          "url": " https://comics.ha.com/itm/animation-art/model-sheet/pinocchio-model-sheets-and-more-group-walt-disney-1940-total-2-/a/7086-96125.s#auction-description",
           "retrieved": "2026-04-21",
-          "archive_status": "not_attempted",
+          "archive_status": "pending",
           "notes": "2013 November 20 & 24 Animation Art Signature Auction",
           "source_type_inferred": false,
           "source_name_inferred": false,
@@ -92,7 +92,8 @@
           "sale_date_precision": "exact",
           "sale_date": "November 24, 2013",
           "sold": true,
-          "price_sold": 479.2
+          "price_sold": 479.2,
+          "archive_captured_at": "2026-04-21T03:01:29.296Z"
         }
       ],
       "published_references": [],
@@ -109,7 +110,7 @@
       ],
       "notes": "Probably pre-June, 1938 and left over from the scrapped first version of Pinocchio. This isn't the earliest version of Pinocchio, but it's earlier than the final version by months to a year.",
       "created_at": "2026-04-21T02:17:58.492Z",
-      "updated_at": "2026-04-21T02:55:28.056Z",
+      "updated_at": "2026-04-21T03:01:34.620Z",
       "image_width": 3000,
       "image_height": 2342,
       "date_on_sheet": "c. 1938"
