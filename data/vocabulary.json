@@ -11,8 +11,9 @@
     {
       "canonical": "Pinocchio",
       "aliases": [],
-      "reviewed": false,
-      "added_at": "2026-04-21T02:23:03.995Z"
+      "reviewed": true,
+      "added_at": "2026-04-21T02:23:03.995Z",
+      "reviewed_at": "2026-04-21T02:26:11.397Z"
     }
   ],
   "tags": [
