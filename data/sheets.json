@@ -73,14 +73,23 @@
       "date_precision": "unknown",
       "approvals": [],
       "sheet_marks": [],
-      "image_file": "images/Model_Sheet_Pinocchio.jpg",
+      "image_file": "images/_5.jpeg",
       "image_sources": [
         {
-          "source_type": "unknown",
-          "source_name": "",
+          "source_type": "auction_listing",
+          "source_name": "Heritage Auctions",
           "url": "",
           "retrieved": "2026-04-21",
-          "archive_status": "not_attempted"
+          "archive_status": "not_attempted",
+          "notes": "2013 November 20 & 24 Animation Art Signature Auction",
+          "source_type_inferred": false,
+          "source_name_inferred": false,
+          "auction_house": "Heritage Auctions",
+          "lot_number": "#7086",
+          "sale_date_precision": "exact",
+          "sale_date": "November 24, 2013",
+          "sold": true,
+          "price_sold": 479.2
         }
       ],
       "published_references": [],
@@ -97,9 +106,9 @@
       ],
       "notes": "Probably pre-June, 1938 and left over from the scrapped first version of Pinocchio. This isn't the earliest version of Pinocchio, but it's earlier than the final version by months to a year.",
       "created_at": "2026-04-21T02:17:58.492Z",
-      "updated_at": "2026-04-21T02:30:10.565Z",
-      "image_width": 800,
-      "image_height": 613,
+      "updated_at": "2026-04-21T02:55:28.056Z",
+      "image_width": 3000,
+      "image_height": 2342,
       "date_on_sheet": "c. 1938"
     }
   ]
