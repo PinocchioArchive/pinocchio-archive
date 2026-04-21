@@ -48,8 +48,15 @@
     {
       "canonical": "Early",
       "aliases": [],
+      "reviewed": true,
+      "added_at": "2026-04-21T02:20:15.190Z",
+      "reviewed_at": "2026-04-21T02:26:14.296Z"
+    },
+    {
+      "canonical": "Pinocchio",
+      "aliases": [],
       "reviewed": false,
-      "added_at": "2026-04-21T02:20:15.190Z"
+      "added_at": "2026-04-21T03:00:49.155Z"
     }
   ]
 }
